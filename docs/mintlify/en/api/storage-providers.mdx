@@ -1,0 +1,421 @@
+---
+title: "Storage Providers"
+description: "Configure and manage storage provider profiles for local, S3, and GitHub-based asset storage."
+---
+
+Storage provider endpoints let you configure where NekoHub stores uploaded assets. You can maintain multiple profiles and designate one as the default. All endpoints require authentication via JWT Bearer token or API key.
+
+Supported provider types:
+- `local` — local filesystem storage
+- `s3` — S3-compatible object storage (AWS S3, MinIO, R2, etc.)
+- `github-repo` — GitHub repository storage
+
+---
+
+## Get storage providers overview
+
+```
+GET /api/v1/system/storage/providers
+```
+
+Returns all configured storage profiles, the active default profile, and runtime information about the currently active storage backend.
+
+**Required permission:** `providers.read`
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="profiles" type="array">
+      All configured storage profiles.
+      <Expandable title="profile properties">
+        <ResponseField name="id" type="string (uuid)">Profile ID.</ResponseField>
+        <ResponseField name="name" type="string">Unique internal name for the profile.</ResponseField>
+        <ResponseField name="displayName" type="string">Human-readable display name.</ResponseField>
+        <ResponseField name="providerType" type="string">Provider type: `local`, `s3`, or `github-repo`.</ResponseField>
+        <ResponseField name="isEnabled" type="boolean">Whether this profile is enabled.</ResponseField>
+        <ResponseField name="isDefault" type="boolean">Whether this is the default profile for new uploads.</ResponseField>
+        <ResponseField name="capabilities" type="object">
+          What this provider supports.
+          <Expandable title="properties">
+            <ResponseField name="supportsPublicRead" type="boolean">Can serve files publicly.</ResponseField>
+            <ResponseField name="supportsPrivateRead" type="boolean">Can serve files privately.</ResponseField>
+            <ResponseField name="supportsVisibilityToggle" type="boolean">Can change file visibility after upload.</ResponseField>
+            <ResponseField name="supportsDelete" type="boolean">Can delete files.</ResponseField>
+            <ResponseField name="supportsDirectPublicUrl" type="boolean">Can generate direct public URLs.</ResponseField>
+            <ResponseField name="requiresAccessProxy" type="boolean">Whether access must go through the NekoHub proxy.</ResponseField>
+            <ResponseField name="recommendedForPrimaryStorage" type="boolean">Whether this provider is recommended as primary storage.</ResponseField>
+            <ResponseField name="isPlatformBacked" type="boolean">Whether backed by an external platform.</ResponseField>
+            <ResponseField name="isExperimental" type="boolean">Whether this provider is experimental.</ResponseField>
+            <ResponseField name="requiresTokenForPrivateRead" type="boolean">Whether a token is needed for private reads.</ResponseField>
+          </Expandable>
+        </ResponseField>
+        <ResponseField name="configurationSummary" type="object">Non-sensitive configuration summary (root path, bucket, endpoint host, etc.).</ResponseField>
+        <ResponseField name="createdAtUtc" type="string (ISO 8601)">Creation timestamp.</ResponseField>
+        <ResponseField name="updatedAtUtc" type="string (ISO 8601)">Last update timestamp.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="defaultProfile" type="object">The profile currently marked as default, or `null`.</ResponseField>
+    <ResponseField name="defaultWriteProfile" type="object">The effective profile used for writes, or `null`.</ResponseField>
+    <ResponseField name="runtime" type="object">
+      Information about the currently active runtime storage backend.
+      <Expandable title="properties">
+        <ResponseField name="providerType" type="string">Active provider type.</ResponseField>
+        <ResponseField name="providerName" type="string">Active provider name.</ResponseField>
+        <ResponseField name="capabilities" type="object">Capabilities of the active runtime provider.</ResponseField>
+        <ResponseField name="isConfigurationDriven" type="boolean">Whether the runtime is driven by the database profile configuration.</ResponseField>
+        <ResponseField name="matchesDefaultProfileType" type="boolean">Whether the runtime provider type matches the default profile.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="alignment" type="object">
+      Runtime and profile alignment status.
+      <Expandable title="properties">
+        <ResponseField name="runtimeSelectionSource" type="string">How the runtime was selected.</ResponseField>
+        <ResponseField name="hasDefaultProfile" type="boolean">Whether a default profile is configured.</ResponseField>
+        <ResponseField name="isDefaultProfileEnabled" type="boolean">Whether the default profile is enabled.</ResponseField>
+        <ResponseField name="providerTypeMatchesDefaultProfile" type="boolean">Whether the runtime and default profile types match.</ResponseField>
+        <ResponseField name="code" type="string">Alignment status code.</ResponseField>
+        <ResponseField name="message" type="string">Human-readable alignment status message.</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:5121/api/v1/system/storage/providers \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Create a storage profile
+
+```
+POST /api/v1/system/storage/providers
+```
+
+Creates a new storage provider profile.
+
+**Required permission:** `providers.create`
+
+### Request body
+
+<ParamField body="name" type="string" required>
+  Unique internal name for the profile (e.g. `my-s3-bucket`).
+</ParamField>
+
+<ParamField body="displayName" type="string" required>
+  Human-readable name shown in the UI.
+</ParamField>
+
+<ParamField body="providerType" type="string" required>
+  Provider type. One of: `local`, `s3`, `github-repo`.
+</ParamField>
+
+<ParamField body="isEnabled" type="boolean">
+  Whether the profile is enabled. Defaults to `true`.
+</ParamField>
+
+<ParamField body="isDefault" type="boolean">
+  Whether to set this as the default profile. Defaults to `false`.
+</ParamField>
+
+<ParamField body="configuration" type="object">
+  Provider-specific non-sensitive configuration (e.g. bucket name, region, root path, repository owner/name).
+</ParamField>
+
+<ParamField body="secretConfiguration" type="object">
+  Provider-specific sensitive configuration (e.g. access key, secret key, GitHub token). Values in this object are stored encrypted and are not returned in GET responses.
+</ParamField>
+
+### Response — 201 Created
+
+Returns the created storage profile object.
+
+### Example — create an S3 profile
+
+```bash
+curl -X POST http://localhost:5121/api/v1/system/storage/providers \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-s3",
+    "displayName": "My S3 Bucket",
+    "providerType": "s3",
+    "isEnabled": true,
+    "isDefault": false,
+    "configuration": {
+      "bucketOrContainer": "nekohub-assets",
+      "region": "us-east-1",
+      "publicBaseUrl": "https://cdn.example.com"
+    },
+    "secretConfiguration": {
+      "accessKey": "AKIAIOSFODNN7EXAMPLE",
+      "secretKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    }
+  }'
+```
+
+---
+
+## Update a storage profile
+
+```
+PATCH /api/v1/system/storage/providers/{id}
+```
+
+Updates an existing storage provider profile. Only fields you include are changed.
+
+**Required permission:** `providers.update`
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the profile to update.
+</ParamField>
+
+### Request body
+
+<ParamField body="name" type="string">
+  New internal name. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  New display name. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="isEnabled" type="boolean">
+  New enabled state. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="configuration" type="object">
+  Updated non-sensitive configuration. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="secretConfiguration" type="object">
+  Updated sensitive configuration. Omit to leave unchanged.
+</ParamField>
+
+### Response — 200 OK
+
+Returns the updated storage profile object.
+
+### Example
+
+```bash
+curl -X PATCH http://localhost:5121/api/v1/system/storage/providers/01956f8d-0000-0000-0000-000000000010 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"displayName": "Primary S3 Bucket", "isEnabled": true}'
+```
+
+---
+
+## Delete a storage profile
+
+```
+DELETE /api/v1/system/storage/providers/{id}
+```
+
+Deletes a storage provider profile. Existing assets stored under this profile are not automatically migrated or deleted.
+
+**Required permission:** `providers.delete`
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the profile to delete.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="string (uuid)">ID of the deleted profile.</ResponseField>
+    <ResponseField name="wasDefault" type="boolean">Whether this profile was the default at time of deletion.</ResponseField>
+    <ResponseField name="status" type="string">Final status.</ResponseField>
+    <ResponseField name="deletedAtUtc" type="string (ISO 8601)">Deletion timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X DELETE http://localhost:5121/api/v1/system/storage/providers/01956f8d-0000-0000-0000-000000000010 \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Set default storage profile
+
+```
+POST /api/v1/system/storage/providers/{id}/set-default
+```
+
+Marks the specified profile as the default storage profile for new asset uploads.
+
+**Required permission:** `settings.update`
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the profile to set as default.
+</ParamField>
+
+### Response — 200 OK
+
+Returns the updated storage profile object.
+
+### Example
+
+```bash
+curl -X POST http://localhost:5121/api/v1/system/storage/providers/01956f8d-0000-0000-0000-000000000010/set-default \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Browse a GitHub Repo directory
+
+```
+GET /api/v1/system/storage/providers/{id}/github-repo/browse
+```
+
+Lists files and directories within a GitHub-based storage profile. Only available for profiles with `providerType: github-repo`.
+
+**Required permission:** `providers.read`
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of a `github-repo` storage profile.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="path" type="string">
+  Directory path to browse. Defaults to the repository root.
+</ParamField>
+
+<ParamField query="recursive" type="boolean">
+  Whether to list contents recursively.
+</ParamField>
+
+<ParamField query="maxDepth" type="integer">
+  Maximum recursion depth when `recursive` is `true`.
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter by entry type: `file`, `dir`, or omit for all.
+</ParamField>
+
+<ParamField query="keyword" type="string">
+  Filter entries by name keyword.
+</ParamField>
+
+<ParamField query="page" type="integer">
+  Page number. Defaults to `1`.
+</ParamField>
+
+<ParamField query="pageSize" type="integer">
+  Results per page.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="profileId" type="string (uuid)">The storage profile ID.</ResponseField>
+    <ResponseField name="requestedPath" type="string">The path that was browsed.</ResponseField>
+    <ResponseField name="total" type="integer">Total matching entries.</ResponseField>
+    <ResponseField name="page" type="integer">Current page.</ResponseField>
+    <ResponseField name="pageSize" type="integer">Items per page.</ResponseField>
+    <ResponseField name="hasMore" type="boolean">Whether more pages are available.</ResponseField>
+    <ResponseField name="items" type="array">
+      <Expandable title="item properties">
+        <ResponseField name="name" type="string">Entry name.</ResponseField>
+        <ResponseField name="path" type="string">Full path within the repository.</ResponseField>
+        <ResponseField name="type" type="string">Entry type: `file` or `dir`.</ResponseField>
+        <ResponseField name="isDirectory" type="boolean">Whether this entry is a directory.</ResponseField>
+        <ResponseField name="isFile" type="boolean">Whether this entry is a file.</ResponseField>
+        <ResponseField name="size" type="integer">File size in bytes (files only).</ResponseField>
+        <ResponseField name="sha" type="string">Git blob SHA.</ResponseField>
+        <ResponseField name="publicUrl" type="string">Public URL for the file, if applicable.</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl "http://localhost:5121/api/v1/system/storage/providers/01956f8d-0000-0000-0000-000000000010/github-repo/browse?path=images&page=1&pageSize=20" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Upsert a file in a GitHub Repo
+
+```
+POST /api/v1/system/storage/providers/{id}/github-repo/upsert
+```
+
+Creates or updates a single file in a GitHub-based storage profile.
+
+**Required permission:** `providers.update`
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of a `github-repo` storage profile.
+</ParamField>
+
+### Request body
+
+<ParamField body="path" type="string" required>
+  Path within the repository where the file should be written (e.g. `images/2026/photo.png`).
+</ParamField>
+
+<ParamField body="contentBase64" type="string" required>
+  Base64-encoded content of the file to write.
+</ParamField>
+
+<ParamField body="commitMessage" type="string">
+  Optional commit message. Defaults to a generated message if omitted.
+</ParamField>
+
+<ParamField body="expectedSha" type="string">
+  For updates: the current file's Git blob SHA. Required when updating an existing file to prevent conflicts. Omit when creating a new file.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="profileId" type="string (uuid)">The storage profile ID.</ResponseField>
+    <ResponseField name="path" type="string">The path where the file was written.</ResponseField>
+    <ResponseField name="operation" type="string">Whether the operation was a `create` or `update`.</ResponseField>
+    <ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+    <ResponseField name="sha" type="string">New Git blob SHA.</ResponseField>
+    <ResponseField name="publicUrl" type="string">Public URL for the file, if applicable.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+Returns `409 Conflict` if the `expectedSha` does not match the current file SHA.
+
+### Example
+
+```bash
+curl -X POST http://localhost:5121/api/v1/system/storage/providers/01956f8d-0000-0000-0000-000000000010/github-repo/upsert \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "images/hello.txt",
+    "contentBase64": "SGVsbG8sIHdvcmxkIQ==",
+    "commitMessage": "Add hello.txt"
+  }'
+```

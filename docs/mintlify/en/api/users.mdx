@@ -1,0 +1,43 @@
+---
+title: "Users"
+description: "Create and manage users, statuses, roles, and permissions."
+---
+
+All user endpoints require authentication plus the relevant `users.*` permission.
+
+## Role values
+
+Current role values are:
+
+- `superAdmin`
+- `admin`
+- `user`
+
+`superAdmin` cannot be created through `/api/v1/users`; it is bootstrap-only.
+
+## Create user
+
+```http
+POST /api/v1/users
+```
+
+Valid role values for normal user creation are `admin` and `user`.
+
+## Update permissions
+
+```json
+{
+  "permissions": [
+    "assets.read",
+    "assets.create"
+  ]
+}
+```
+
+Permission names use dot notation such as `assets.read` and `users.managePermissions`.
+
+## Constraints
+
+- `admin` can only manage `user`
+- `superAdmin` cannot be disabled
+- `superAdmin` permissions cannot be edited

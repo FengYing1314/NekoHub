@@ -1,0 +1,174 @@
+---
+title: "Public Assets"
+description: "Browse and retrieve publicly visible image assets — no authentication required."
+---
+
+Public asset endpoints let anyone browse and view assets that have been marked as public. No authentication is required.
+
+---
+
+## List public assets
+
+```
+GET /api/v1/public/assets
+```
+
+Returns a paginated list of assets where `isPublic` is `true` and status is `ready`. Results are sorted by creation date, newest first.
+
+### Query parameters
+
+<ParamField query="page" type="integer">
+  Page number to retrieve. Defaults to `1`.
+</ParamField>
+
+<ParamField query="pageSize" type="integer">
+  Number of items per page. Defaults to the server-configured default. Capped at the server-configured maximum.
+</ParamField>
+
+<ParamField query="query" type="string">
+  Free-text search query. Matches against file name, description, and alt text.
+</ParamField>
+
+<ParamField query="contentType" type="string">
+  Filter by MIME content type. For example: `image/png`, `image/jpeg`.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="items" type="array">
+      Array of public asset list items.
+      <Expandable title="item properties">
+        <ResponseField name="id" type="string (uuid)">Unique asset identifier.</ResponseField>
+        <ResponseField name="type" type="string">Asset type. Currently always `image`.</ResponseField>
+        <ResponseField name="originalFileName" type="string">The original filename at upload time.</ResponseField>
+        <ResponseField name="contentType" type="string">MIME type (e.g. `image/png`).</ResponseField>
+        <ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+        <ResponseField name="width" type="integer">Image width in pixels, if available.</ResponseField>
+        <ResponseField name="height" type="integer">Image height in pixels, if available.</ResponseField>
+        <ResponseField name="publicUrl" type="string">Direct URL to access the asset content.</ResponseField>
+        <ResponseField name="description" type="string">Optional description.</ResponseField>
+        <ResponseField name="altText" type="string">Optional alt text.</ResponseField>
+        <ResponseField name="createdAtUtc" type="string (ISO 8601)">Timestamp when the asset was created.</ResponseField>
+        <ResponseField name="updatedAtUtc" type="string (ISO 8601)">Timestamp when the asset was last updated.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="page" type="integer">Current page number.</ResponseField>
+    <ResponseField name="pageSize" type="integer">Number of items per page.</ResponseField>
+    <ResponseField name="total" type="integer">Total number of matching assets.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl "http://localhost:5121/api/v1/public/assets?page=1&pageSize=20&contentType=image/png"
+```
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": "01956f8d-88e4-7c6a-a8f1-5f235293db7a",
+        "type": "image",
+        "originalFileName": "kitten.png",
+        "contentType": "image/png",
+        "size": 183204,
+        "width": 800,
+        "height": 600,
+        "publicUrl": "http://localhost:5121/content/2026/03/10/kitten.png",
+        "description": "A fluffy orange kitten",
+        "altText": "Orange cat looking at camera",
+        "createdAtUtc": "2026-03-10T12:00:00Z",
+        "updatedAtUtc": "2026-03-10T12:00:00Z"
+      }
+    ],
+    "page": 1,
+    "pageSize": 20,
+    "total": 1
+  }
+}
+```
+
+---
+
+## Get a public asset
+
+```
+GET /api/v1/public/assets/{id}
+```
+
+Returns the full detail of a single public asset, including its derivatives.
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the asset.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="string (uuid)">Unique asset identifier.</ResponseField>
+    <ResponseField name="type" type="string">Asset type. Currently always `image`.</ResponseField>
+    <ResponseField name="originalFileName" type="string">The original filename at upload time.</ResponseField>
+    <ResponseField name="contentType" type="string">MIME type.</ResponseField>
+    <ResponseField name="extension" type="string">File extension (e.g. `.png`).</ResponseField>
+    <ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+    <ResponseField name="width" type="integer">Image width in pixels, if available.</ResponseField>
+    <ResponseField name="height" type="integer">Image height in pixels, if available.</ResponseField>
+    <ResponseField name="publicUrl" type="string">Direct URL to access the asset content.</ResponseField>
+    <ResponseField name="description" type="string">Optional description.</ResponseField>
+    <ResponseField name="altText" type="string">Optional alt text.</ResponseField>
+    <ResponseField name="createdAtUtc" type="string (ISO 8601)">Timestamp when the asset was created.</ResponseField>
+    <ResponseField name="updatedAtUtc" type="string (ISO 8601)">Timestamp when the asset was last updated.</ResponseField>
+    <ResponseField name="derivatives" type="array">
+      Derived versions of the asset (e.g. thumbnails).
+      <Expandable title="derivative properties">
+        <ResponseField name="kind" type="string">Type of derivative (e.g. `thumbnail`).</ResponseField>
+        <ResponseField name="contentType" type="string">MIME type of the derivative.</ResponseField>
+        <ResponseField name="extension" type="string">File extension of the derivative.</ResponseField>
+        <ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+        <ResponseField name="width" type="integer">Width in pixels.</ResponseField>
+        <ResponseField name="height" type="integer">Height in pixels.</ResponseField>
+        <ResponseField name="publicUrl" type="string">Direct URL to access this derivative.</ResponseField>
+        <ResponseField name="createdAtUtc" type="string (ISO 8601)">When the derivative was created.</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+Returns `404 Not Found` with error code `asset_not_found` if the asset does not exist or is not public.
+
+### Example
+
+```bash
+curl "http://localhost:5121/api/v1/public/assets/01956f8d-88e4-7c6a-a8f1-5f235293db7a"
+```
+
+---
+
+## Serve asset content
+
+```
+GET /content/{storageKey}
+```
+
+Serves the raw binary content of a public asset directly. This URL is what `publicUrl` points to. You can embed it in `<img>` tags or download it directly.
+
+This endpoint only serves assets with `isPublic: true`. Private asset content requires authentication and must be accessed via [GET /api/v1/assets/{id}/content](/api/assets#get-asset-content).
+
+### Path parameters
+
+<ParamField path="storageKey" type="string" required>
+  The storage key of the asset. This value comes from the `publicUrl` field in asset responses.
+</ParamField>
+
+### Example
+
+```bash
+curl -O "http://localhost:5121/content/2026/03/10/kitten.png"
+```

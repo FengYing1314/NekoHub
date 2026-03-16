@@ -1,0 +1,137 @@
+---
+title: "存储选项"
+description: "配置 NekoHub 用什么后端存储图片资产。"
+---
+
+NekoHub 支持三类存储后端：本地磁盘、S3 兼容对象存储和 GitHub Repo。通过 `Storage__Provider` 选择运行时默认 provider，再配置对应变量。
+
+<Tabs>
+  <Tab title="本地存储">
+
+## 本地存储
+
+本地存储直接把文件写到运行 NekoHub 的服务器文件系统中。`compose.yaml` 默认就是这种模式。
+
+**适合：** 开发环境、单机部署、由你自己负责备份的场景。
+
+### 基本配置
+
+```env
+Storage__Provider=local
+Storage__Local__RootPath=/app/storage/assets
+Storage__PublicBaseUrl=http://localhost:5121/content
+```
+
+### 变量说明
+
+| 变量 | 必填 | 默认值 | 说明 |
+|---|---|---|---|
+| `Storage__Provider` | 是 | - | 必须是 `local` |
+| `Storage__Local__RootPath` | 否 | `/app/storage/assets` | 资产写入目录。容器部署时要挂持久化卷 |
+| `Storage__PublicBaseUrl` | 是 | - | 对外公开 URL 前缀。后端通过 `/content` 提供公开内容访问 |
+
+### Docker 持久化建议
+
+<Tip>
+  为 `Storage__Local__RootPath` 映射持久化卷，避免容器重建后丢失文件：
+
+  ```yaml
+  volumes:
+    - nekohub_assets:/app/storage/assets
+  ```
+</Tip>
+
+  </Tab>
+  <Tab title="S3 兼容">
+
+## S3 兼容存储
+
+支持 AWS S3、MinIO、Cloudflare R2、DigitalOcean Spaces 等兼容 S3 API 的对象存储。生产环境通常优先选这一类。
+
+**适合：** 生产、多实例部署、需要对象存储耐久性或 CDN 的场景。
+
+### 变量说明
+
+| 变量 | 必填 | 默认值 | 说明 |
+|---|---|---|---|
+| `Storage__Provider` | 是 | - | 必须是 `s3` |
+| `Storage__S3__Endpoint` | 是 | - | S3 endpoint，如 `https://s3.amazonaws.com` 或 `http://minio:9000` |
+| `Storage__S3__Bucket` | 是 | - | Bucket 名称 |
+| `Storage__S3__Region` | 是 | - | Region；MinIO 等可用 `us-east-1` |
+| `Storage__S3__AccessKey` | 是 | - | Access key |
+| `Storage__S3__SecretKey` | 是 | - | Secret key |
+| `Storage__S3__ForcePathStyle` | 否 | `false` | MinIO 等常需要 `true` |
+| `Storage__S3__PublicBaseUrl` | 否 | - | 若对象存储本身有可直接访问的公开地址，可在此配置 |
+| `Storage__PublicBaseUrl` | 是 | - | NekoHub 对外暴露的公开内容前缀 |
+
+### MinIO 示例
+
+```env
+Storage__Provider=s3
+Storage__S3__Endpoint=http://minio:9000
+Storage__S3__Bucket=nekohub
+Storage__S3__Region=us-east-1
+Storage__S3__AccessKey=minioadmin
+Storage__S3__SecretKey=minioadmin
+Storage__S3__ForcePathStyle=true
+Storage__S3__PublicBaseUrl=http://localhost:9000/nekohub
+Storage__PublicBaseUrl=http://localhost:9000/nekohub
+```
+
+### AWS S3 示例
+
+```env
+Storage__Provider=s3
+Storage__S3__Endpoint=https://s3.amazonaws.com
+Storage__S3__Bucket=my-nekohub-assets
+Storage__S3__Region=us-east-1
+Storage__S3__AccessKey=AKIAIOSFODNN7EXAMPLE
+Storage__S3__SecretKey=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+Storage__S3__ForcePathStyle=false
+Storage__S3__PublicBaseUrl=https://my-nekohub-assets.s3.amazonaws.com
+Storage__PublicBaseUrl=https://my-nekohub-assets.s3.amazonaws.com
+```
+
+  </Tab>
+  <Tab title="GitHub Repo">
+
+## GitHub Repo 存储
+
+<Warning>
+  GitHub Repo provider 是实验性能力，更适合作为发布型或补充型存储，不建议作为生产环境主存储。
+</Warning>
+
+它会通过 GitHub Contents API 把文件提交到仓库中。
+
+**适合：** 低频发布、公共仓库托管、与代码仓库一起维护静态资源的场景。
+
+### 变量说明
+
+| 变量 | 必填 | 默认值 | 说明 |
+|---|---|---|---|
+| `Storage__Provider` | 是 | - | 必须是 `github-repo` |
+| `Storage__GitHubRepo__Owner` | 是 | - | 仓库拥有者 |
+| `Storage__GitHubRepo__Repo` | 是 | - | 仓库名 |
+| `Storage__GitHubRepo__Ref` | 是 | - | 提交目标分支，如 `main` |
+| `Storage__GitHubRepo__BasePath` | 否 | - | 仓库中的目录前缀 |
+| `Storage__GitHubRepo__Token` | 是 | - | GitHub token |
+| `Storage__GitHubRepo__VisibilityPolicy` | 否 | - | 可见性策略，常见值如 `public-only` |
+| `Storage__GitHubRepo__CommitMessageTemplate` | 否 | `chore(nekohub): {operation} {path}` | 提交消息模板 |
+| `Storage__PublicBaseUrl` | 是 | - | 对外内容基础 URL |
+
+### 示例
+
+```env
+Storage__Provider=github-repo
+Storage__GitHubRepo__Owner=your-org
+Storage__GitHubRepo__Repo=nekohub-assets
+Storage__GitHubRepo__Ref=main
+Storage__GitHubRepo__BasePath=assets/images
+Storage__GitHubRepo__Token=ghp_xxxxxxxxxxxxxxxxxxxx
+Storage__GitHubRepo__VisibilityPolicy=public-only
+Storage__GitHubRepo__CommitMessageTemplate=chore(nekohub): {operation} {path}
+Storage__PublicBaseUrl=https://raw.githubusercontent.com/your-org/nekohub-assets/main/assets/images
+```
+
+  </Tab>
+</Tabs>

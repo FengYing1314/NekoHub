@@ -1,0 +1,110 @@
+---
+title: "Upload Assets"
+description: "Upload image assets to NekoHub via the admin console or the REST API."
+---
+
+NekoHub accepts image uploads through two paths: the admin console UI and the REST API. Both support the same options for visibility, storage provider, and AI enrichment.
+
+## Upload via the admin console
+
+<Steps>
+  <Step title="Open the Assets page">
+    Navigate to `/assets` in the admin console.
+  </Step>
+  <Step title="Click Upload">
+    Click the **Upload** button in the top-right corner of the page.
+  </Step>
+  <Step title="Select your file">
+    Choose the image file you want to upload. You can also fill in optional fields:
+    - **Description** — a human-readable note about the asset (max 1000 characters)
+    - **Alt text** — accessibility text for the image (max 1000 characters)
+    - **Public** — controls whether the asset is publicly accessible (default: on)
+    - **Storage provider** — select a specific storage profile, or leave blank to use the default
+  </Step>
+  <Step title="Submit">
+    Click **Upload**. NekoHub stores the file and, if AI enrichment is enabled, begins processing in the background. The asset appears in the list with status `ready` when complete.
+  </Step>
+</Steps>
+
+## Upload via the API
+
+Send a `multipart/form-data` POST request to `/api/v1/assets`.
+
+### Request fields
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `file` | Yes | — | The image file to upload |
+| `description` | No | — | Human-readable description (max 1000 chars) |
+| `altText` | No | — | Accessibility alt text (max 1000 chars) |
+| `isPublic` | No | `true` | Whether the asset is publicly accessible |
+| `storageProviderProfileId` | No | default provider | UUID of a specific storage provider profile |
+| `runEnrichment` | No | `true` | Whether to run AI enrichment after upload |
+
+### Example
+
+```bash
+curl -X POST https://your-api-host/api/v1/assets \
+  -H "Authorization: Bearer <access_token>" \
+  -F "file=@/path/to/image.png" \
+  -F "description=Product screenshot" \
+  -F "altText=Screenshot of the dashboard" \
+  -F "isPublic=true" \
+  -F "runEnrichment=true"
+```
+
+### Response
+
+A successful upload returns `202 Accepted` with the asset record:
+
+```json
+{
+  "data": {
+    "id": "01956f8d-88e4-7c6a-a8f1-5f235293db7a",
+    "type": "image",
+    "status": "ready",
+    "originalFileName": "image.png",
+    "contentType": "image/png",
+    "size": 183204,
+    "width": 1280,
+    "height": 720,
+    "storageProvider": "local",
+    "storageKey": "2026/04/08/01956f8d-image.png",
+    "publicUrl": "https://your-api-host/content/2026/04/08/01956f8d-image.png",
+    "isPublic": true,
+    "description": "Product screenshot",
+    "altText": "Screenshot of the dashboard",
+    "createdAtUtc": "2026-04-08T10:00:00Z",
+    "updatedAtUtc": "2026-04-08T10:00:00Z"
+  }
+}
+```
+
+## File validation rules
+
+NekoHub enforces the following rules on every upload:
+
+- **File is required** — the `file` field must be present and non-empty.
+- **Maximum file size** — set by `FRONTEND_VITE_MAX_UPLOAD_SIZE_BYTES` (default: `10485760` bytes / 10 MB). Uploads exceeding this limit are rejected with error code `asset_file_too_large`.
+- **Content type must be declared** — the request must include a recognized MIME type. Unsupported types are rejected with `asset_content_type_not_allowed`.
+- **Description and alt text** — each field is limited to 1000 characters.
+
+## Public vs. private assets
+
+Assets can be public or private, controlled by the `isPublic` field.
+
+- **Public assets** (`isPublic: true`) are accessible at their `publicUrl` without authentication and appear in the public gallery at `/gallery`.
+- **Private assets** (`isPublic: false`) can only be accessed by authenticated users through the protected endpoint `GET /api/v1/assets/{id}/content`.
+
+You can change an asset's visibility at any time by patching it:
+
+```bash
+curl -X PATCH https://your-api-host/api/v1/assets/<asset-id> \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"isPublic": false}'
+```
+
+<Tip>
+  Set `runEnrichment: false` to skip AI processing on upload. This is useful when uploading assets in bulk or when you want to run enrichment manually later using a specific skill.
+</Tip>

@@ -1,0 +1,75 @@
+---
+title: "Quick Start"
+description: "Deploy NekoHub with Docker Compose and complete your first login and upload."
+---
+
+<Note>
+  Replace all placeholder secrets before going public.
+</Note>
+
+<Steps>
+  <Step title="Copy the environment file">
+    ```bash
+    cp .env.example .env
+    ```
+
+    Set at least:
+
+    ```env
+    Auth__Jwt__Secret=replace-with-a-strong-random-secret-32chars-min
+    Auth__BootstrapSuperAdmin__Username=admin
+    Auth__BootstrapSuperAdmin__Password=replace-with-a-strong-password
+    FRONTEND_VITE_API_BASE_URL=http://localhost:5121
+    ```
+
+    Enable API keys if you plan to use MCP or scripts:
+
+    ```env
+    Auth__ApiKey__Enabled=true
+    Auth__ApiKey__Keys__0=replace-with-a-strong-random-api-key
+    ```
+  </Step>
+
+  <Step title="Start the stack">
+    ```bash
+    docker compose up -d --build
+    ```
+  </Step>
+
+  <Step title="Verify the backend">
+    ```bash
+    curl http://localhost:5121/api/v1/system/ping
+    curl http://localhost:5121/api/v1/system/bootstrap
+    ```
+
+    `bootstrap` returns runtime config such as `apiKeyRequired`, `maxUploadSizeBytes`, and `allowedContentTypes`. It does not confirm whether a `SuperAdmin` was created.
+  </Step>
+
+  <Step title="Log in">
+    Open [http://localhost:5173/login](http://localhost:5173/login) and sign in with the bootstrap credentials from `.env`.
+  </Step>
+
+  <Step title="Upload your first image">
+    Open [http://localhost:5173/assets](http://localhost:5173/assets), upload an image, and optionally make it public.
+
+    After the upload you can open `/workflows` to configure reusable workflow profiles and decide whether they should run automatically for new assets.
+  </Step>
+
+  <Step title="Browse the gallery">
+    Open [http://localhost:5173/gallery](http://localhost:5173/gallery).
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment" icon="server" href="/deployment">
+    Production topology, reverse proxies, domains, and HTTPS.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/guides/workflows">
+    Configure workflow profiles, auto-run behavior, and manual execution from asset details.
+  </Card>
+  <Card title="Storage providers" icon="database" href="/concepts/storage-providers">
+    Local, S3-compatible, and GitHub Repo storage options.
+  </Card>
+</CardGroup>

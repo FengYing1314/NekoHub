@@ -1,0 +1,91 @@
+---
+title: "MCP"
+description: "把 NekoHub 作为 MCP 服务器接入 Agent 与工具。"
+---
+
+NekoHub 提供基于 HTTP 的 MCP 接口，供兼容 MCP 的客户端直接操作资产库。
+
+## Endpoint
+
+```text
+POST /mcp
+```
+
+完整地址示例：
+
+```text
+http://your-host:5121/mcp
+```
+
+当前控制器还实现了：
+
+- `GET /mcp`
+- `GET /mcp/sse`
+- `POST /mcp/message?sessionId=...`
+
+## Authentication
+
+MCP 只接受 API key，而且必须通过 Bearer 头传递：
+
+```text
+Authorization: Bearer your-api-key
+```
+
+启用方式：
+
+```env
+Auth__ApiKey__Enabled=true
+Auth__ApiKey__Keys__0=your-strong-random-key
+```
+
+## MCP 客户端配置
+
+```json
+{
+  "mcpServers": {
+    "nekohub": {
+      "url": "http://localhost:5121/mcp",
+      "headers": {
+        "Authorization": "Bearer your-api-key"
+      }
+    }
+  }
+}
+```
+
+## Available tools
+
+### 资产管理
+
+| Tool | 说明 |
+|---|---|
+| `upload_asset` | 上传图片资产 |
+| `list_assets` | 按条件列出资产 |
+| `get_asset` | 查看单个资产详情 |
+| `patch_asset` | 修改资产元数据 |
+| `delete_asset` | 删除单个资产 |
+| `batch_delete_assets` | 批量删除资产 |
+| `get_asset_content_url` | 获取内容访问地址 |
+| `get_asset_usage_stats` | 获取使用统计 |
+
+### AI 技能
+
+| Tool | 说明 |
+|---|---|
+| `list_skills` | 列出可运行技能 |
+| `run_asset_skill` | 对指定资产运行技能 |
+
+### 存储管理
+
+| Tool | 说明 |
+|---|---|
+| `list_storage_profiles` | 列出存储 profile |
+| `create_storage_profile` | 创建存储 profile |
+| `update_storage_profile` | 更新存储 profile |
+| `delete_storage_profile` | 删除存储 profile |
+
+## Notes
+
+- 这是 HTTP MCP，不是 stdio
+- 所有通过 MCP 执行的操作都遵守同样的业务校验，例如文件大小和内容类型限制
+- API key 是长期凭据，请放到安全的 secrets 管理中

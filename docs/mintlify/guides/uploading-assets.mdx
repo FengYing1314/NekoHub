@@ -1,0 +1,75 @@
+---
+title: "上传资产"
+description: "通过管理后台或 API 上传图片资产。"
+---
+
+## 在管理后台上传
+
+1. 登录 `/login`
+2. 进入 `/assets`
+3. 点击 **Upload**
+4. 选择图片并填写可选字段
+5. 提交后查看资产详情页
+
+## 通过 API 上传
+
+上传接口是：
+
+```http
+POST /api/v1/assets
+Content-Type: multipart/form-data
+```
+
+### 表单字段
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `file` | 是 | 图片文件 |
+| `description` | 否 | 描述，最长 1000 字符 |
+| `altText` | 否 | 替代文本，最长 1000 字符 |
+| `isPublic` | 否 | 是否公开，默认 `true` |
+| `storageProviderProfileId` | 否 | 指定使用的存储 profile |
+| `runEnrichment` | 否 | 是否上传后立即运行 enrichment，默认 `true` |
+| `commitMessage` | 否 | 某些 provider（如 GitHub Repo）可用的提交消息 |
+
+### 示例
+
+```bash
+curl -X POST http://localhost:5121/api/v1/assets \
+  -H "Authorization: Bearer <JWT_OR_API_KEY>" \
+  -F "file=@kitten.png" \
+  -F "description=A fluffy orange kitten" \
+  -F "altText=Orange cat looking at camera" \
+  -F "isPublic=true" \
+  -F "runEnrichment=true"
+```
+
+### 响应
+
+成功时返回 `202 Accepted`，并带 `data` 包装：
+
+```json
+{
+  "data": {
+    "id": "01956f8d-88e4-7c6a-a8f1-5f235293db7a",
+    "type": "image",
+    "status": "ready",
+    "contentType": "image/png",
+    "storageProvider": "local",
+    "isPublic": true
+  }
+}
+```
+
+## 文件校验规则
+
+- 文件不能为空
+- 文件大小不能超过后端配置的 `maxUploadSizeBytes`
+- 类型必须在允许的内容类型列表中
+- `description` 和 `altText` 最长 1000 字符
+
+## 公开与私有
+
+- `isPublic=true` 的资产会进入 `/gallery`
+- `isPublic=false` 的资产不会出现在公开接口中
+- 私有资产内容需要通过受保护的 `/api/v1/assets/{id}/content` 访问

@@ -1,0 +1,184 @@
+---
+title: "Deployment"
+description: "Configure NekoHub for local, split-domain, or same-domain reverse proxy deployments."
+---
+
+<Warning>
+  **Change the default password before deploying publicly.** The `.env.example` placeholder values for `Auth__Jwt__Secret`, `Auth__BootstrapSuperAdmin__Password`, and `Auth__ApiKey__Keys__0` are not safe for production. Replace all of them with strong, randomly generated values.
+</Warning>
+
+## Deployment topologies
+
+Choose the topology that matches your setup. The key difference between them is how you point the frontend at the backend API.
+
+<Tabs>
+  <Tab title="Local (default ports)">
+    The simplest option. Frontend and backend run on the same machine with their default ports. Use this for local testing, single-machine setups, or internal network deployments.
+
+    ```env
+    FRONTEND_VITE_API_BASE_URL=http://localhost:5121
+    Storage__PublicBaseUrl=http://localhost:5121/content
+    ```
+
+    Default addresses after `docker compose up -d --build`:
+
+    | Service | Address |
+    |---------|---------|
+    | Public gallery | `http://localhost:5173/gallery` |
+    | Admin console | `http://localhost:5173/login` |
+    | Backend API | `http://localhost:5121` |
+  </Tab>
+  <Tab title="Split-domain">
+    Frontend and backend are served from separate domains or subdomains. Set `FRONTEND_VITE_API_BASE_URL` to your API domain and configure `FRONTEND_VITE_ALLOWED_HOSTS` to allow the frontend domain.
+
+    ```env
+    FRONTEND_VITE_API_BASE_URL=https://api.nekohub.example.com
+    Storage__PublicBaseUrl=https://api.nekohub.example.com/content
+    FRONTEND_VITE_ALLOWED_HOSTS=nekohub.example.com
+    ```
+
+    Use this when:
+    - Your frontend is hosted on a CDN or separate static host
+    - You want to manage frontend and API scaling independently
+    - You need separate TLS certificates per service
+  </Tab>
+  <Tab title="Same-domain reverse proxy">
+    A reverse proxy (Nginx, Caddy, Traefik, etc.) serves both frontend and backend under the same domain. The proxy routes `/api` and `/content` to the backend, and everything else to the frontend.
+
+    ```env
+    # Leave blank — the frontend will make same-origin API requests
+    FRONTEND_VITE_API_BASE_URL=
+    Storage__PublicBaseUrl=https://nekohub.example.com/content
+    FRONTEND_VITE_ALLOWED_HOSTS=nekohub.example.com
+    ```
+
+    Example Nginx routing rules:
+
+    ```nginx
+    location /api {
+        proxy_pass http://localhost:5121;
+    }
+    location /content {
+        proxy_pass http://localhost:5121;
+    }
+    location / {
+        proxy_pass http://localhost:5173;
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Environment variables
+
+These are the variables you configure in your `.env` file. The `compose.yaml` passes them into the containers automatically.
+
+### Required
+
+| Variable | Description |
+|----------|-------------|
+| `Persistence__Database__ConnectionString` | PostgreSQL connection string. Example: `Host=postgres;Port=5432;Database=nekohub;Username=nekohub;Password=yourpassword;Pooling=true` |
+| `Auth__Jwt__Secret` | Secret key used to sign JWT tokens. Must be at least 32 characters. Use a strong random value. |
+| `Auth__BootstrapSuperAdmin__Username` | Username for the initial SuperAdmin account. Created once when the database has no SuperAdmin. |
+| `Auth__BootstrapSuperAdmin__Password` | Password for the initial SuperAdmin account. |
+| `Storage__Provider` | Active storage backend. One of: `local`, `s3`, `github-repo`. |
+| `Storage__PublicBaseUrl` | Base URL for public asset URLs. Used by the gallery and public content links. |
+
+### Frontend
+
+| Variable | Description |
+|----------|-------------|
+| `FRONTEND_VITE_API_BASE_URL` | URL the browser uses to reach the backend API. Leave empty if using a same-origin reverse proxy. |
+| `FRONTEND_VITE_ALLOWED_HOSTS` | Hosts allowed to serve the frontend preview. Set to `true` to allow all, or a comma-separated list of domains. |
+
+### API key (optional)
+
+| Variable | Description |
+|----------|-------------|
+| `Auth__ApiKey__Enabled` | Set to `true` to enable API key authentication. Required for MCP and script integrations. |
+| `Auth__ApiKey__Keys__0` | The API key value. Add more keys as `Keys__1`, `Keys__2`, etc. |
+
+<Note>
+  `Auth__BootstrapSuperAdmin__*` only runs once — when the database has no SuperAdmin user. Subsequent restarts do not re-create or overwrite the account. Additional users are managed from the admin console `/users` page.
+</Note>
+
+### JWT tuning (optional)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `Auth__Jwt__Issuer` | `NekoHub` | JWT issuer claim. |
+| `Auth__Jwt__Audience` | `NekoHub.Admin` | JWT audience claim. |
+| `Auth__Jwt__AccessTokenMinutes` | `15` | Access token lifetime in minutes. |
+| `Auth__Jwt__RefreshTokenDays` | `30` | Refresh token lifetime in days. |
+
+## Verifying your deployment
+
+After starting the containers, run these checks to confirm everything is working:
+
+**Backend health:**
+
+```bash
+curl http://localhost:5121/api/v1/system/ping
+curl http://localhost:5121/api/v1/system/bootstrap
+```
+
+**Public assets API:**
+
+```bash
+curl "http://localhost:5121/api/v1/public/assets?page=1&pageSize=20"
+```
+
+**Login endpoint:**
+
+```bash
+curl -X POST "http://localhost:5121/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"<your-superadmin-password>"}'
+```
+
+A successful login response includes an `accessToken` and a `refreshToken`.
+
+## Fixing the "host not allowed" error
+
+If you access NekoHub via a custom domain and see an error like:
+
+```
+Request blocked. This host ("nekohub.example.com") is not allowed.
+```
+
+This is not a backend authentication error. It is the frontend container's Vite preview server rejecting the `Host` header.
+
+Fix it by setting `FRONTEND_VITE_ALLOWED_HOSTS` in your `.env`:
+
+```env
+# Allow all hosts (convenient, less strict):
+FRONTEND_VITE_ALLOWED_HOSTS=true
+
+# Or allow a specific domain only:
+FRONTEND_VITE_ALLOWED_HOSTS=nekohub.example.com
+```
+
+Then rebuild the frontend container:
+
+```bash
+docker compose up -d --build nekohub-web
+```
+
+## Production checklist
+
+<Note>
+  Before going live, verify each of these.
+</Note>
+
+- Replace all placeholder values in `.env` with strong, randomly generated secrets
+- Use a persistent PostgreSQL instance (not an ephemeral container for production data)
+- Enable HTTPS for the frontend, API, and `/content` URLs
+- If using split-domain, update both `FRONTEND_VITE_API_BASE_URL` and `Storage__PublicBaseUrl` to your HTTPS URLs
+- Set `FRONTEND_VITE_ALLOWED_HOSTS` to your actual domain
+- If you need MCP or script access, configure `Auth__ApiKey__Enabled` and `Auth__ApiKey__Keys__0`
+- If you want uploads to trigger workflows automatically, configure `/workflows` first; workflows that include `ai-caption` also require an active AI provider
+
+## Related docs
+
+- [Workflow guide](/guides/workflows)
+- [Workflow API](/api/workflows)
+- [AI skills and provider setup](/guides/ai-skills)

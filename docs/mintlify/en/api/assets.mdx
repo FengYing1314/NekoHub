@@ -1,0 +1,523 @@
+---
+title: "Assets"
+description: "Upload, list, update, delete, and process image assets. Requires authentication."
+---
+
+All asset management endpoints require authentication via JWT Bearer token or API key. See [Authentication](/api/authentication) for details.
+
+---
+
+## Upload an asset
+
+```
+POST /api/v1/assets
+Content-Type: multipart/form-data
+```
+
+Uploads a new image asset. The request must be `multipart/form-data`. On success, the server returns `202 Accepted` and begins background processing (enrichment, derivative generation) if `runEnrichment` is enabled.
+
+### Request fields
+
+<ParamField body="file" type="file" required>
+  The image file to upload. Must not be empty. Allowed content types are configured server-side (typically `image/png`, `image/jpeg`, `image/gif`, `image/webp`, etc.).
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional description for the asset. Maximum 1000 characters.
+</ParamField>
+
+<ParamField body="altText" type="string">
+  Optional alt text for the asset. Maximum 1000 characters.
+</ParamField>
+
+<ParamField body="isPublic" type="boolean">
+  Whether the asset should be publicly accessible. Defaults to `true`.
+</ParamField>
+
+<ParamField body="storageProviderProfileId" type="string (uuid)">
+  Optional. The ID of the storage provider profile to use. If omitted, the default storage provider is used.
+</ParamField>
+
+<ParamField body="runEnrichment" type="boolean">
+  Whether to run AI enrichment after upload. Defaults to `true`.
+</ParamField>
+
+<ParamField body="commitMessage" type="string">
+  Optional commit message for storage providers that support it (e.g. GitHub Repo).
+</ParamField>
+
+### Response — 202 Accepted
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="string (uuid)">Unique asset identifier.</ResponseField>
+    <ResponseField name="type" type="string">Asset type. Currently always `image`.</ResponseField>
+    <ResponseField name="status" type="string">Processing status. One of: `pending`, `processing`, `ready`, `failed`.</ResponseField>
+    <ResponseField name="originalFileName" type="string">The original filename provided at upload.</ResponseField>
+    <ResponseField name="contentType" type="string">MIME type of the uploaded file.</ResponseField>
+    <ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+    <ResponseField name="width" type="integer">Image width in pixels, populated after processing.</ResponseField>
+    <ResponseField name="height" type="integer">Image height in pixels, populated after processing.</ResponseField>
+    <ResponseField name="storageProvider" type="string">The storage provider type used (e.g. `local`, `s3`, `github-repo`).</ResponseField>
+    <ResponseField name="storageProviderProfileId" type="string (uuid)">The storage profile ID used.</ResponseField>
+    <ResponseField name="storageKey" type="string">Internal storage key for the asset.</ResponseField>
+    <ResponseField name="publicUrl" type="string">Public URL for the asset (if `isPublic` is true).</ResponseField>
+    <ResponseField name="isPublic" type="boolean">Whether the asset is publicly accessible.</ResponseField>
+    <ResponseField name="description" type="string">Asset description.</ResponseField>
+    <ResponseField name="altText" type="string">Asset alt text.</ResponseField>
+    <ResponseField name="createdAtUtc" type="string (ISO 8601)">Creation timestamp.</ResponseField>
+    <ResponseField name="updatedAtUtc" type="string (ISO 8601)">Last updated timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Code | Description |
+|------|-------------|
+| `asset_file_required` | The `file` field was not included in the request. |
+| `asset_file_empty` | The uploaded file has zero bytes. |
+| `asset_file_too_large` | The file exceeds the configured maximum upload size. |
+| `asset_content_type_not_allowed` | The file's content type is not in the allowed list. |
+| `asset_description_too_long` | Description exceeds 1000 characters. |
+| `asset_alt_text_too_long` | Alt text exceeds 1000 characters. |
+
+### Example
+
+```bash
+curl -X POST http://localhost:5121/api/v1/assets \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@kitten.png" \
+  -F "description=A fluffy orange kitten" \
+  -F "altText=Orange cat looking at camera" \
+  -F "isPublic=true" \
+  -F "runEnrichment=true"
+```
+
+---
+
+## List assets
+
+```
+GET /api/v1/assets
+```
+
+Returns a paginated list of all assets visible to the authenticated user.
+
+### Query parameters
+
+<ParamField query="page" type="integer">
+  Page number. Defaults to `1`.
+</ParamField>
+
+<ParamField query="pageSize" type="integer">
+  Number of results per page. Defaults to the server-configured default, capped at the configured maximum.
+</ParamField>
+
+<ParamField query="query" type="string">
+  Free-text search. Also accepted as `keyword`. Matches file name, description, and alt text.
+</ParamField>
+
+<ParamField query="contentType" type="string">
+  Filter by MIME type (e.g. `image/jpeg`).
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by processing status. One of: `pending`, `processing`, `ready`, `failed`.
+</ParamField>
+
+<ParamField query="orderBy" type="string">
+  Field to sort by. Also accepted as `sortBy`. Supported values: `createdAtUtc` (default), `size`.
+</ParamField>
+
+<ParamField query="orderDirection" type="string">
+  Sort direction. Also accepted as `sortDirection`. One of: `asc`, `desc` (default).
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="items" type="array">
+      Array of asset list items. Each item has: `id`, `type`, `status`, `originalFileName`, `contentType`, `size`, `width`, `height`, `storageProvider`, `storageProviderProfileId`, `publicUrl`, `isPublic`, `createdAtUtc`, `updatedAtUtc`.
+    </ResponseField>
+    <ResponseField name="page" type="integer">Current page number.</ResponseField>
+    <ResponseField name="pageSize" type="integer">Items per page.</ResponseField>
+    <ResponseField name="total" type="integer">Total matching asset count.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl "http://localhost:5121/api/v1/assets?page=1&pageSize=20&orderBy=createdAtUtc&orderDirection=desc" \
+  -H "Authorization: Bearer your-api-key"
+```
+
+---
+
+## Get an asset
+
+```
+GET /api/v1/assets/{id}
+```
+
+Returns full details for a single asset, including all derivatives and structured AI results.
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the asset.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="string (uuid)">Unique identifier.</ResponseField>
+    <ResponseField name="type" type="string">Asset type.</ResponseField>
+    <ResponseField name="status" type="string">Processing status.</ResponseField>
+    <ResponseField name="originalFileName" type="string">Original filename.</ResponseField>
+    <ResponseField name="storedFileName" type="string">The name under which the file is stored.</ResponseField>
+    <ResponseField name="contentType" type="string">MIME type.</ResponseField>
+    <ResponseField name="extension" type="string">File extension.</ResponseField>
+    <ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+    <ResponseField name="width" type="integer">Image width in pixels.</ResponseField>
+    <ResponseField name="height" type="integer">Image height in pixels.</ResponseField>
+    <ResponseField name="checksumSha256" type="string">SHA-256 checksum of the file content.</ResponseField>
+    <ResponseField name="storageProvider" type="string">Storage provider type.</ResponseField>
+    <ResponseField name="storageProviderProfileId" type="string (uuid)">Storage profile ID.</ResponseField>
+    <ResponseField name="storageKey" type="string">Internal storage key.</ResponseField>
+    <ResponseField name="publicUrl" type="string">Public content URL (if public).</ResponseField>
+    <ResponseField name="isPublic" type="boolean">Whether the asset is publicly accessible.</ResponseField>
+    <ResponseField name="description" type="string">Asset description.</ResponseField>
+    <ResponseField name="altText" type="string">Asset alt text.</ResponseField>
+    <ResponseField name="createdAtUtc" type="string (ISO 8601)">Creation timestamp.</ResponseField>
+    <ResponseField name="updatedAtUtc" type="string (ISO 8601)">Last updated timestamp.</ResponseField>
+    <ResponseField name="derivatives" type="array">
+      Derived versions (e.g. thumbnails). Each entry includes: `kind`, `contentType`, `extension`, `size`, `width`, `height`, `publicUrl`, `createdAtUtc`.
+    </ResponseField>
+    <ResponseField name="structuredResults" type="array">
+      Structured AI results attached to the asset. Each entry includes: `kind`, `payloadJson`, `createdAtUtc`.
+    </ResponseField>
+    <ResponseField name="latestExecutionSummary" type="object">
+      Summary of the most recent skill execution on this asset.
+      <Expandable title="properties">
+        <ResponseField name="executionId" type="string (uuid)">Execution identifier.</ResponseField>
+        <ResponseField name="skillName" type="string">Name of the skill that ran.</ResponseField>
+        <ResponseField name="triggerSource" type="string">How the execution was triggered.</ResponseField>
+        <ResponseField name="startedAtUtc" type="string (ISO 8601)">When the execution started.</ResponseField>
+        <ResponseField name="completedAtUtc" type="string (ISO 8601)">When the execution completed.</ResponseField>
+        <ResponseField name="succeeded" type="boolean">Whether the execution succeeded overall.</ResponseField>
+        <ResponseField name="steps" type="array">Individual step results. Each has: `stepName`, `succeeded`, `errorMessage`, `startedAtUtc`, `completedAtUtc`.</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+Returns `404 Not Found` with error code `asset_not_found` if the asset does not exist.
+
+### Example
+
+```bash
+curl http://localhost:5121/api/v1/assets/01956f8d-88e4-7c6a-a8f1-5f235293db7a \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Update asset metadata
+
+```
+PATCH /api/v1/assets/{id}
+```
+
+Updates metadata fields for an existing asset. Only fields you include in the request body are changed (patch semantics).
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the asset to update.
+</ParamField>
+
+### Request body
+
+<ParamField body="description" type="string">
+  New description. Maximum 1000 characters. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="altText" type="string">
+  New alt text. Maximum 1000 characters. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="originalFileName" type="string">
+  New original filename. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="isPublic" type="boolean">
+  Change public visibility. Omit to leave unchanged.
+</ParamField>
+
+### Response
+
+Returns the full updated asset object (same shape as [Get an asset](#get-an-asset)).
+
+### Example
+
+```bash
+curl -X PATCH http://localhost:5121/api/v1/assets/01956f8d-88e4-7c6a-a8f1-5f235293db7a \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"description": "Updated description", "isPublic": false}'
+```
+
+---
+
+## Delete an asset
+
+```
+DELETE /api/v1/assets/{id}
+```
+
+Permanently deletes an asset. This is a hard delete — the asset record and its file in storage are both removed.
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the asset to delete.
+</ParamField>
+
+### Request body (optional)
+
+<ParamField body="commitMessage" type="string">
+  Optional commit message for storage backends that support versioning (e.g. GitHub Repo).
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="string (uuid)">ID of the deleted asset.</ResponseField>
+    <ResponseField name="status" type="string">Final status of the asset before deletion.</ResponseField>
+    <ResponseField name="deletedAtUtc" type="string (ISO 8601)">Timestamp of deletion.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+Returns `404 Not Found` with error code `asset_not_found` if the asset does not exist.
+
+### Example
+
+```bash
+curl -X DELETE http://localhost:5121/api/v1/assets/01956f8d-88e4-7c6a-a8f1-5f235293db7a \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"commitMessage": "Remove test asset"}'
+```
+
+---
+
+## Batch delete assets
+
+```
+POST /api/v1/assets/batch-delete
+```
+
+Deletes multiple assets in one request. Assets that do not exist are silently skipped and reported in `notFoundIds`.
+
+### Request body
+
+<ParamField body="ids" type="array of strings (uuid)" required>
+  An array of asset IDs to delete.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="requestedCount" type="integer">Number of IDs provided in the request.</ResponseField>
+    <ResponseField name="deletedCount" type="integer">Number of assets successfully deleted.</ResponseField>
+    <ResponseField name="notFoundIds" type="array of strings (uuid)">IDs that were not found and therefore not deleted.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://localhost:5121/api/v1/assets/batch-delete \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '["01956f8d-88e4-7c6a-a8f1-5f235293db7a", "01956f8d-0000-0000-0000-000000000001"]'
+```
+
+---
+
+## Get asset content
+
+```
+GET /api/v1/assets/{id}/content
+```
+
+Accesses the content of an asset, with access control applied:
+
+- **Public asset**: Returns a `307 Temporary Redirect` to the public content URL.
+- **Private asset**: Streams the content directly (requires valid JWT or API key).
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the asset.
+</ParamField>
+
+Returns `404 Not Found` with error code `asset_not_found` if the asset does not exist.
+
+### Example
+
+```bash
+# For a public asset — follow the redirect
+curl -L http://localhost:5121/api/v1/assets/01956f8d-88e4-7c6a-a8f1-5f235293db7a/content \
+  -H "Authorization: Bearer <token>"
+
+# For a private asset — save to file
+curl http://localhost:5121/api/v1/assets/01956f8d-88e4-7c6a-a8f1-5f235293db7a/content \
+  -H "Authorization: Bearer <token>" \
+  -o asset.png
+```
+
+---
+
+## List available skills
+
+```
+GET /api/v1/assets/skills
+```
+
+Returns a list of AI skills available to run against assets.
+
+### Response
+
+<ResponseField name="data" type="array">
+  <Expandable title="item properties">
+    <ResponseField name="skillName" type="string">Unique identifier name of the skill.</ResponseField>
+    <ResponseField name="description" type="string">Human-readable description of what the skill does.</ResponseField>
+    <ResponseField name="steps" type="array of strings">The processing steps this skill performs.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:5121/api/v1/assets/skills \
+  -H "Authorization: Bearer your-api-key"
+```
+
+---
+
+## Run a skill on an asset
+
+```
+POST /api/v1/assets/{id}/skills/{skillName}/run
+```
+
+Triggers an AI skill to run against a specific asset. Skills can generate captions, alt text, thumbnails, and other derived outputs.
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the asset.
+</ParamField>
+
+<ParamField path="skillName" type="string" required>
+  The name of the skill to run. Use [List available skills](#list-available-skills) to discover valid skill names.
+</ParamField>
+
+### Request body (optional)
+
+<ParamField body="parameters" type="object">
+  Optional skill-specific parameters as a JSON object. The accepted parameters depend on the skill being run.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="succeeded" type="boolean">Whether the skill execution succeeded overall.</ResponseField>
+    <ResponseField name="skillName" type="string">The name of the skill that ran.</ResponseField>
+    <ResponseField name="steps" type="array">
+      Individual step results.
+      <Expandable title="step properties">
+        <ResponseField name="name" type="string">Step name.</ResponseField>
+        <ResponseField name="succeeded" type="boolean">Whether this step succeeded.</ResponseField>
+        <ResponseField name="errorMessage" type="string">Error message if this step failed.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="asset" type="object">The updated asset object after skill execution.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://localhost:5121/api/v1/assets/01956f8d-88e4-7c6a-a8f1-5f235293db7a/skills/caption/run \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+---
+
+## Get usage statistics
+
+```
+GET /api/v1/assets/usage-stats
+```
+
+Returns aggregate usage statistics across all assets.
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="totalAssets" type="integer">Total number of assets in the system.</ResponseField>
+    <ResponseField name="totalBytes" type="integer">Total storage used across all assets, in bytes.</ResponseField>
+    <ResponseField name="totalDerivatives" type="integer">Total number of asset derivatives (e.g. thumbnails).</ResponseField>
+    <ResponseField name="contentTypeBreakdown" type="array">
+      Per-content-type usage breakdown.
+      <Expandable title="item properties">
+        <ResponseField name="contentType" type="string">MIME type.</ResponseField>
+        <ResponseField name="count" type="integer">Number of assets with this content type.</ResponseField>
+        <ResponseField name="totalBytes" type="integer">Total bytes for assets with this content type.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="mostActiveSkill" type="object">
+      The skill with the most executions, or `null` if no skills have been run.
+      <Expandable title="properties">
+        <ResponseField name="skillName" type="string">Name of the skill.</ResponseField>
+        <ResponseField name="runCount" type="integer">Number of times this skill has been executed.</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:5121/api/v1/assets/usage-stats \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "data": {
+    "totalAssets": 42,
+    "totalBytes": 104857600,
+    "totalDerivatives": 38,
+    "contentTypeBreakdown": [
+      { "contentType": "image/png", "count": 25, "totalBytes": 62914560 },
+      { "contentType": "image/jpeg", "count": 17, "totalBytes": 41943040 }
+    ],
+    "mostActiveSkill": {
+      "skillName": "caption",
+      "runCount": 30
+    }
+  }
+}
+```

@@ -1,0 +1,81 @@
+---
+title: "Storage Providers"
+description: "Storage providers determine where NekoHub physically stores uploaded image files. You can configure multiple provider profiles and set one as the default."
+---
+
+A storage provider is the backend where NekoHub writes and reads image files when you upload an asset. NekoHub supports three provider types, each suited to different use cases.
+
+## Provider types
+
+<CardGroup cols={3}>
+  <Card title="Local" icon="hard-drive">
+    Files are stored on the server's local disk. Straightforward to set up and requires no external services.
+  </Card>
+  <Card title="S3-compatible" icon="cloud">
+    Files are stored in any S3-compatible object storage service, such as AWS S3 or MinIO. Recommended for production deployments.
+  </Card>
+  <Card title="GitHub Repo" icon="github">
+    Files are committed to a GitHub repository. Suited for supplementary or platform-backed storage scenarios.
+  </Card>
+</CardGroup>
+
+### Local
+
+Local storage writes files to a directory on the server running NekoHub. It is the simplest option and works well for single-machine setups, local development, or situations where you don't need external object storage.
+
+**Best for:** Single-machine deployments, local testing.
+
+### S3-compatible
+
+S3-compatible storage uses the S3 API to store files in an object storage bucket. This works with AWS S3, MinIO, Cloudflare R2, DigitalOcean Spaces, and any other S3-compatible service.
+
+**Best for:** Production deployments requiring durability, scalability, or CDN integration.
+
+<Tip>
+  Use S3-compatible storage for any production deployment. It gives you durability, scalability, and direct public URL support that local storage cannot match.
+</Tip>
+
+### GitHub Repo
+
+GitHub Repo storage commits image files directly to a GitHub repository. It is an experimental provider and behaves differently from traditional object storage — file access depends on repository visibility and GitHub's API rate limits.
+
+**Best for:** Supplementary use cases where the repository is already the source of truth, or platform-style asset hosting on public repositories.
+
+<Warning>
+  GitHub Repo storage is experimental and not recommended as your primary storage for a production deployment. It is subject to GitHub API rate limits and does not support the full range of storage capabilities (such as private reads and visibility toggles). Use a local or S3-compatible provider as your primary storage instead.
+</Warning>
+
+## Storage provider profiles
+
+A **storage provider profile** is a named configuration for a specific storage backend. You create and manage profiles from the `/providers` page in the admin console or via the `/api/v1/system/storage/providers` API.
+
+Each profile stores:
+- A display name and unique identifier
+- The provider type (`local`, `s3`, `github-repo`)
+- Provider-specific configuration (e.g. bucket name, region, endpoint URL)
+- Credentials (stored securely and not returned in plaintext after creation)
+
+You can create multiple profiles — for example, one for your primary S3 bucket and one for a secondary local backup — and choose which profile to use when uploading each asset.
+
+## Default provider profile
+
+One profile can be marked as the **default**. When you upload an asset without specifying a storage provider profile, NekoHub uses the default profile automatically.
+
+You can change the default profile at any time. Changing the default does not affect assets already uploaded to other providers.
+
+## Provider capabilities
+
+Not all storage providers support the same features. The capabilities of a profile are reported when you fetch provider details:
+
+| Capability | Description |
+|---|---|
+| `supportsPublicRead` | The provider can serve files publicly without authentication. |
+| `supportsPrivateRead` | The provider can serve private files through an access-controlled endpoint. |
+| `supportsVisibilityToggle` | You can change an asset between public and private after upload. |
+| `supportsDelete` | The provider supports deleting files. |
+| `supportsDirectPublicUrl` | The provider returns a direct, permanent public URL for each asset. |
+| `requiresAccessProxy` | Private file reads must be proxied through the NekoHub API rather than served directly. |
+| `recommendedForPrimaryStorage` | The provider is suitable as a primary storage backend. |
+| `isExperimental` | The provider is experimental and may have limitations. |
+
+Check the capabilities of your chosen provider before relying on features like private asset access or visibility toggling.

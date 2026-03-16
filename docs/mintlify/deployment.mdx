@@ -1,0 +1,200 @@
+---
+title: "部署"
+description: "为本地、分域和同域反向代理场景配置 NekoHub。"
+---
+
+<Warning>
+  **公开部署前请替换全部占位密钥。** `Auth__Jwt__Secret`、`Auth__BootstrapSuperAdmin__Password`、`Auth__ApiKey__Keys__0` 都必须换成强随机值。
+</Warning>
+
+## 部署拓扑
+
+根据你的网络结构选择一种部署方式。核心区别在于：浏览器如何访问后端 API，以及公开内容地址如何暴露。
+
+<Tabs>
+  <Tab title="本地默认端口">
+    适合本机开发、单机部署或内网环境。
+
+    ```env
+    FRONTEND_VITE_API_BASE_URL=http://localhost:5121
+    Storage__PublicBaseUrl=http://localhost:5121/content
+    ```
+
+    默认地址：
+
+    | 服务 | 地址 |
+    |---|---|
+    | 公开画廊 | `http://localhost:5173/gallery` |
+    | 管理后台 | `http://localhost:5173/login` |
+    | 后端 API | `http://localhost:5121` |
+  </Tab>
+  <Tab title="前后端分域">
+    适合前端单独托管、CDN 前置或你希望前后端分开扩缩容的场景。
+
+    ```env
+    FRONTEND_VITE_API_BASE_URL=https://api.nekohub.example.com
+    Storage__PublicBaseUrl=https://api.nekohub.example.com/content
+    FRONTEND_VITE_ALLOWED_HOSTS=nekohub.example.com
+    ```
+
+    使用这个模式时，要同时处理好 CORS、TLS 和反向代理规则。
+  </Tab>
+  <Tab title="同域反向代理">
+    前端和后端都挂在同一域名下，由 Nginx、Caddy、Traefik 等反向代理分流。
+
+    ```env
+    FRONTEND_VITE_API_BASE_URL=
+    Storage__PublicBaseUrl=https://nekohub.example.com/content
+    FRONTEND_VITE_ALLOWED_HOSTS=nekohub.example.com
+    ```
+
+    一个简化的 Nginx 路由示例：
+
+    ```nginx
+    location /api {
+        proxy_pass http://localhost:5121;
+    }
+    location /content {
+        proxy_pass http://localhost:5121;
+    }
+    location / {
+        proxy_pass http://localhost:5173;
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 关键环境变量
+
+以下变量通常需要在 `.env` 中配置：
+
+### 必填
+
+| 变量 | 说明 |
+|---|---|
+| `Persistence__Database__ConnectionString` | PostgreSQL 连接串，例如 `Host=postgres;Port=5432;Database=nekohub;Username=nekohub;Password=yourpassword;Pooling=true` |
+| `Auth__Jwt__Secret` | JWT 签名密钥，至少 32 个字符 |
+| `Auth__BootstrapSuperAdmin__Username` | 初始 `SuperAdmin` 用户名，仅在数据库没有超级管理员时生效 |
+| `Auth__BootstrapSuperAdmin__Password` | 初始 `SuperAdmin` 密码 |
+| `Storage__Provider` | 当前运行时默认存储 provider：`local`、`s3` 或 `github-repo` |
+| `Storage__PublicBaseUrl` | 对外公开内容地址前缀，通常以 `/content` 结尾 |
+
+### 前端
+
+| 变量 | 说明 |
+|---|---|
+| `FRONTEND_VITE_API_BASE_URL` | 浏览器访问后端 API 的基础地址；同域反代时可留空 |
+| `FRONTEND_VITE_ALLOWED_HOSTS` | Vite preview 允许的 Host，生产或自定义域名下常需要设置 |
+
+### API key（可选）
+
+| 变量 | 说明 |
+|---|---|
+| `Auth__ApiKey__Enabled` | 是否启用 API key 鉴权 |
+| `Auth__ApiKey__Keys__0` | 第一个 API key；更多 key 可用 `Keys__1`、`Keys__2` 追加 |
+
+<Note>
+  `Auth__BootstrapSuperAdmin__*` 只在数据库中没有 `SuperAdmin` 时执行一次。后续重启不会重建，也不会覆盖现有账户。
+</Note>
+
+### JWT 可选调优
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `Auth__Jwt__Issuer` | `NekoHub` | JWT `iss` |
+| `Auth__Jwt__Audience` | `NekoHub.Admin` | JWT `aud` |
+| `Auth__Jwt__AccessTokenMinutes` | `15` | Access token 生命周期（分钟） |
+| `Auth__Jwt__RefreshTokenDays` | `30` | Refresh token 生命周期（天） |
+
+## 验证部署是否正常
+
+启动后建议至少验证以下链路：
+
+**后端健康检查**
+
+```bash
+curl http://localhost:5121/api/v1/system/ping
+curl http://localhost:5121/api/v1/system/bootstrap
+```
+
+**公开资产列表**
+
+```bash
+curl "http://localhost:5121/api/v1/public/assets?page=1&pageSize=20"
+```
+
+**管理台登录**
+
+```bash
+curl -X POST "http://localhost:5121/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"<your-superadmin-password>"}'
+```
+
+真实登录成功响应的结构是：
+
+```json
+{
+  "data": {
+    "accessToken": "....",
+    "refreshToken": "....",
+    "accessTokenExpiresAtUtc": "2026-04-08T12:15:00Z",
+    "refreshTokenExpiresAtUtc": "2026-05-08T12:00:00Z",
+    "user": {
+      "id": "01956f8d-0000-0000-0000-000000000001",
+      "username": "admin",
+      "role": "superAdmin",
+      "isActive": true,
+      "createdAtUtc": "2026-04-08T12:00:00Z",
+      "updatedAtUtc": "2026-04-08T12:00:00Z",
+      "lastLoginAtUtc": "2026-04-08T12:00:00Z",
+      "permissions": []
+    }
+  }
+}
+```
+
+## 处理 “host not allowed” 错误
+
+如果你通过自定义域名访问前端时出现：
+
+```text
+Request blocked. This host ("nekohub.example.com") is not allowed.
+```
+
+这通常不是后端鉴权失败，而是前端容器里的 Vite preview 拒绝了当前 `Host`。
+
+把 `.env` 里的 `FRONTEND_VITE_ALLOWED_HOSTS` 改成：
+
+```env
+FRONTEND_VITE_ALLOWED_HOSTS=true
+```
+
+或者更严格地写成：
+
+```env
+FRONTEND_VITE_ALLOWED_HOSTS=nekohub.example.com
+```
+
+然后重新构建前端容器：
+
+```bash
+docker compose up -d --build nekohub-web
+```
+
+## 生产检查清单
+
+- 替换所有默认密钥和占位值
+- 使用持久化 PostgreSQL，而不是临时容器数据卷
+- 为前端、后端 API 和公开内容地址启用 HTTPS
+- 分域部署时同步更新 `FRONTEND_VITE_API_BASE_URL` 与 `Storage__PublicBaseUrl`
+- 按实际域名配置 `FRONTEND_VITE_ALLOWED_HOSTS`
+- 如果需要 MCP 或脚本访问，开启 `Auth__ApiKey__Enabled` 并配置至少一个 API key
+- 如果是容器部署，考虑持久化 Data Protection key，否则重建容器后受保护数据不可恢复
+- 如果需要上传后自动运行 workflow，先完成 `/workflows` 配置；若 workflow 包含 `ai-caption`，还需要 active AI provider
+
+## 相关文档
+
+- [工作流使用指南](/guides/workflows)
+- [Workflow API](/api/workflows)
+- [AI 技能与 Provider 配置](/guides/ai-skills)

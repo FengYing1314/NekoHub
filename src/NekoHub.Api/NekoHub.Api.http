@@ -1,0 +1,52 @@
+@NekoHub.Api_HostAddress = http://localhost:5121
+@NekoHub.Api_Key = change-this-api-key-in-production
+
+GET {{NekoHub.Api_HostAddress}}/api/v1/system/ping
+Accept: application/json
+
+###
+
+POST {{NekoHub.Api_HostAddress}}/api/v1/assets
+Authorization: Bearer {{NekoHub.Api_Key}}
+Content-Type: multipart/form-data; boundary=----NekoHubBoundary
+
+------NekoHubBoundary
+Content-Disposition: form-data; name="description"
+
+cat avatar
+------NekoHubBoundary
+Content-Disposition: form-data; name="altText"
+
+orange cat looking at camera
+------NekoHubBoundary
+Content-Disposition: form-data; name="file"; filename="kitten.png"
+Content-Type: image/png
+
+< ./kitten.png
+------NekoHubBoundary--
+
+###
+
+GET {{NekoHub.Api_HostAddress}}/api/v1/assets?page=1&pageSize=20
+Authorization: Bearer {{NekoHub.Api_Key}}
+Accept: application/json
+
+###
+
+GET {{NekoHub.Api_HostAddress}}/api/v1/assets/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{NekoHub.Api_Key}}
+Accept: application/json
+
+###
+
+DELETE {{NekoHub.Api_HostAddress}}/api/v1/assets/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{NekoHub.Api_Key}}
+Accept: application/json
+
+###
+
+GET {{NekoHub.Api_HostAddress}}/api/v1/assets/00000000-0000-0000-0000-000000000000/content
+Authorization: Bearer {{NekoHub.Api_Key}}
+Accept: application/json
+
+###

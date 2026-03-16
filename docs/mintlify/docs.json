@@ -1,0 +1,167 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "luma",
+  "name": "NekoHub",
+  "colors": {
+    "primary": "#848c8e",
+    "light": "#11161e",
+    "dark": "#cfd0d2"
+  },
+  "favicon": "images/favicon.jpg",
+  "logo": {
+    "light": "https://media.brand.dev/5ffd6ce4-2434-4b4b-920a-f8cacac8b48b.svg",
+    "dark": "https://media.brand.dev/5ffd6ce4-2434-4b4b-920a-f8cacac8b48b.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/fengying1314/nekohub"
+    }
+  },
+  "navigation": {
+    "languages": [
+      {
+        "language": "zh",
+        "tabs": [
+          {
+            "tab": "文档",
+            "groups": [
+              {
+                "group": "开始使用",
+                "pages": [
+                  "introduction",
+                  "quickstart",
+                  "deployment"
+                ]
+              },
+              {
+                "group": "核心概念",
+                "pages": [
+                  "concepts/assets",
+                  "concepts/access-model",
+                  "concepts/storage-providers",
+                  "concepts/ai-providers"
+                ]
+              },
+              {
+                "group": "使用指南",
+                "pages": [
+                  "guides/uploading-assets",
+                  "guides/managing-users",
+                  "guides/storage-setup",
+                  "guides/ai-skills",
+                  "guides/workflows",
+                  "guides/mcp-integration"
+                ]
+              },
+              {
+                "group": "配置",
+                "pages": [
+                  "configuration/environment-variables",
+                  "configuration/storage-options",
+                  "configuration/authentication"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "API 参考",
+            "groups": [
+              {
+                "group": "概览",
+                "pages": [
+                  "api/overview",
+                  "api/authentication"
+                ]
+              },
+              {
+                "group": "端点",
+                "pages": [
+                  "api/public-assets",
+                  "api/assets",
+                  "api/workflows",
+                  "api/auth",
+                  "api/users",
+                  "api/storage-providers",
+                  "api/ai-providers",
+                  "api/mcp"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "language": "en",
+        "tabs": [
+          {
+            "tab": "Documentation",
+            "groups": [
+              {
+                "group": "Get Started",
+                "pages": [
+                  "en/introduction",
+                  "en/quickstart",
+                  "en/deployment"
+                ]
+              },
+              {
+                "group": "Core Concepts",
+                "pages": [
+                  "en/concepts/assets",
+                  "en/concepts/access-model",
+                  "en/concepts/storage-providers",
+                  "en/concepts/ai-providers"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "en/guides/uploading-assets",
+                  "en/guides/managing-users",
+                  "en/guides/storage-setup",
+                  "en/guides/ai-skills",
+                  "en/guides/workflows",
+                  "en/guides/mcp-integration"
+                ]
+              },
+              {
+                "group": "Configuration",
+                "pages": [
+                  "en/configuration/environment-variables",
+                  "en/configuration/storage-options",
+                  "en/configuration/authentication"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "API Reference",
+            "groups": [
+              {
+                "group": "Overview",
+                "pages": [
+                  "en/api/overview",
+                  "en/api/authentication"
+                ]
+              },
+              {
+                "group": "Endpoints",
+                "pages": [
+                  "en/api/public-assets",
+                  "en/api/assets",
+                  "en/api/workflows",
+                  "en/api/auth",
+                  "en/api/users",
+                  "en/api/storage-providers",
+                  "en/api/ai-providers",
+                  "en/api/mcp"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

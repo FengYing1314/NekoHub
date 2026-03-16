@@ -1,0 +1,290 @@
+---
+title: "AI Providers"
+description: "Configure AI provider profiles used for asset enrichment and skill execution."
+---
+
+AI provider profiles define the connection details for the language model used by NekoHub's asset enrichment and skills system. All endpoints require authentication via JWT Bearer token or API key.
+
+Only one profile can be active at a time. The active profile is used for all automatic enrichment and on-demand skill runs.
+
+---
+
+## List AI provider profiles
+
+```
+GET /api/v1/system/ai/providers
+```
+
+Returns all configured AI provider profiles.
+
+**Required permission:** `aiProviders.read`
+
+### Response
+
+<ResponseField name="data" type="array">
+  <Expandable title="item properties">
+    <ResponseField name="id" type="string (uuid)">Profile ID.</ResponseField>
+    <ResponseField name="name" type="string">Profile name.</ResponseField>
+    <ResponseField name="apiBaseUrl" type="string">Base URL of the AI API endpoint.</ResponseField>
+    <ResponseField name="apiKey" type="string">API key (partially redacted in responses).</ResponseField>
+    <ResponseField name="modelName" type="string">Model identifier to use (e.g. `gpt-4o`, `claude-3-5-sonnet`).</ResponseField>
+    <ResponseField name="defaultSystemPrompt" type="string">Default system prompt sent with AI requests.</ResponseField>
+    <ResponseField name="isActive" type="boolean">Whether this is the active profile used for enrichment.</ResponseField>
+    <ResponseField name="createdAtUtc" type="string (ISO 8601)">Creation timestamp.</ResponseField>
+    <ResponseField name="updatedAtUtc" type="string (ISO 8601)">Last update timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:5121/api/v1/system/ai/providers \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Get the active AI provider profile
+
+```
+GET /api/v1/system/ai/providers/active
+```
+
+Returns the currently active AI provider profile, or `null` in `data` if none is configured as active.
+
+**Required permission:** `aiProviders.read`
+
+### Response
+
+Returns the same profile object as items in [List AI provider profiles](#list-ai-provider-profiles), or `{ "data": null }` if no active profile exists.
+
+### Example
+
+```bash
+curl http://localhost:5121/api/v1/system/ai/providers/active \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Create an AI provider profile
+
+```
+POST /api/v1/system/ai/providers
+```
+
+Creates a new AI provider profile. If you set `isActive: true`, any previously active profile is automatically deactivated.
+
+**Required permission:** `aiProviders.create`
+
+### Request body
+
+<ParamField body="name" type="string" required>
+  A descriptive name for this profile (e.g. `OpenAI GPT-4o`).
+</ParamField>
+
+<ParamField body="apiBaseUrl" type="string" required>
+  The base URL of the AI API. For OpenAI-compatible APIs, this is typically `https://api.openai.com/v1`.
+</ParamField>
+
+<ParamField body="apiKey" type="string" required>
+  The API key for authenticating with the AI service.
+</ParamField>
+
+<ParamField body="modelName" type="string" required>
+  The model to use (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`).
+</ParamField>
+
+<ParamField body="defaultSystemPrompt" type="string">
+  Optional default system prompt to include in all AI requests made through this profile.
+</ParamField>
+
+<ParamField body="isActive" type="boolean">
+  Whether to make this the active profile immediately. Only one profile can be active at a time.
+</ParamField>
+
+### Response — 201 Created
+
+Returns the created AI provider profile object.
+
+### Example
+
+```bash
+curl -X POST http://localhost:5121/api/v1/system/ai/providers \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "OpenAI GPT-4o",
+    "apiBaseUrl": "https://api.openai.com/v1",
+    "apiKey": "sk-...",
+    "modelName": "gpt-4o",
+    "defaultSystemPrompt": "You are a helpful image analysis assistant.",
+    "isActive": true
+  }'
+```
+
+---
+
+## Update an AI provider profile
+
+```
+PATCH /api/v1/system/ai/providers/{id}
+```
+
+Updates an existing AI provider profile. Only fields you include are changed.
+
+**Required permission:** `aiProviders.update`
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the profile to update.
+</ParamField>
+
+### Request body
+
+<ParamField body="name" type="string">
+  New profile name. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="apiBaseUrl" type="string">
+  New API base URL. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="apiKey" type="string">
+  New API key. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="modelName" type="string">
+  New model name. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="defaultSystemPrompt" type="string">
+  New default system prompt. Omit to leave unchanged.
+</ParamField>
+
+<ParamField body="isActive" type="boolean">
+  New active state. Setting to `true` deactivates any currently active profile.
+</ParamField>
+
+### Response — 200 OK
+
+Returns the updated AI provider profile object.
+
+### Example
+
+```bash
+curl -X PATCH http://localhost:5121/api/v1/system/ai/providers/01956f8d-0000-0000-0000-000000000020 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"modelName": "gpt-4o-mini", "isActive": true}'
+```
+
+---
+
+## Delete an AI provider profile
+
+```
+DELETE /api/v1/system/ai/providers/{id}
+```
+
+Deletes an AI provider profile. If you delete the active profile, enrichment and skills will stop working until a new active profile is configured.
+
+**Required permission:** `aiProviders.delete`
+
+### Path parameters
+
+<ParamField path="id" type="string (uuid)" required>
+  The unique identifier of the profile to delete.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="string (uuid)">ID of the deleted profile.</ResponseField>
+    <ResponseField name="wasActive" type="boolean">Whether this profile was active at the time of deletion.</ResponseField>
+    <ResponseField name="status" type="string">Final status.</ResponseField>
+    <ResponseField name="deletedAtUtc" type="string (ISO 8601)">Deletion timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X DELETE http://localhost:5121/api/v1/system/ai/providers/01956f8d-0000-0000-0000-000000000020 \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Test an AI provider configuration
+
+```
+POST /api/v1/system/ai/providers/test
+```
+
+Tests an AI provider configuration by sending a real request to the AI service. Use this to verify your credentials and model name before saving a profile.
+
+You can test either an existing saved profile (by `profileId`) or an ad-hoc configuration (by providing connection details directly).
+
+**Required permission:** `aiProviders.update`
+
+### Request body
+
+<ParamField body="profileId" type="string (uuid)">
+  Optional. The ID of an existing profile to test. If provided, the saved configuration is used as the base, and any other fields in the request override it.
+</ParamField>
+
+<ParamField body="apiBaseUrl" type="string">
+  API base URL to test. Required if `profileId` is not provided.
+</ParamField>
+
+<ParamField body="apiKey" type="string">
+  API key to test. Required if `profileId` is not provided.
+</ParamField>
+
+<ParamField body="modelName" type="string">
+  Model name to test.
+</ParamField>
+
+<ParamField body="defaultSystemPrompt" type="string">
+  Optional system prompt to include in the test request.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="succeeded" type="boolean">Whether the test request to the AI service succeeded.</ResponseField>
+    <ResponseField name="caption" type="string">A test caption generated by the model, confirming connectivity and that the model can process images.</ResponseField>
+    <ResponseField name="resolvedModelName" type="string">The model name that was actually used.</ResponseField>
+    <ResponseField name="resolvedApiBaseUrl" type="string">The API base URL that was actually used.</ResponseField>
+    <ResponseField name="errorMessage" type="string">Error message if `succeeded` is `false`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://localhost:5121/api/v1/system/ai/providers/test \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apiBaseUrl": "https://api.openai.com/v1",
+    "apiKey": "sk-...",
+    "modelName": "gpt-4o"
+  }'
+```
+
+```json
+{
+  "data": {
+    "succeeded": true,
+    "caption": "A sample test caption generated by the model.",
+    "resolvedModelName": "gpt-4o",
+    "resolvedApiBaseUrl": "https://api.openai.com/v1",
+    "errorMessage": null
+  }
+}
+```

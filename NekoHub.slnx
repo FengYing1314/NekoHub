@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="compose.yaml" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/NekoHub.Api/NekoHub.Api.csproj" />
+    <Project Path="src/NekoHub.Application/NekoHub.Application.csproj" />
+    <Project Path="src/NekoHub.Domain/NekoHub.Domain.csproj" />
+    <Project Path="src/NekoHub.Infrastructure/NekoHub.Infrastructure.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,80 @@
+---
+title: "API Authentication"
+description: "How JWT and API keys work in the NekoHub API."
+---
+
+NekoHub supports two authentication methods for management APIs.
+
+## JWT Bearer
+
+Use JWT when the request acts on behalf of a logged-in user.
+
+First call [POST /api/v1/auth/login](/api/auth#login), then send:
+
+```bash
+Authorization: Bearer <access_token>
+```
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
+  http://localhost:5121/api/v1/assets
+```
+
+JWT is the only accepted method for:
+
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
+
+## API key
+
+Use API keys for scripts, automation, CI/CD, and MCP. API keys also use the `Authorization` header. Do not use the legacy custom header form:
+
+```bash
+Authorization: Bearer <api_key>
+```
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer your-api-key" \
+  http://localhost:5121/api/v1/assets
+```
+
+Enable it with:
+
+```env
+Auth__ApiKey__Enabled=true
+Auth__ApiKey__Keys__0=your-strong-random-key
+```
+
+`/mcp` only accepts API keys.
+
+## Endpoint support matrix
+
+| Endpoint group | JWT | API key |
+|---|---|---|
+| Public assets | Not required | Not required |
+| `/content/{storageKey}` | Not required | Not required |
+| `GET /api/v1/system/ping` | Not required | Not required |
+| `GET /api/v1/system/bootstrap` | Not required | Not required |
+| `POST /api/v1/auth/login` | Not required | Not required |
+| `POST /api/v1/auth/refresh` | Not required | Not required |
+| `POST /api/v1/auth/logout` | Required | Not accepted |
+| `GET /api/v1/auth/me` | Required | Not accepted |
+| `/api/v1/assets` | Accepted | Accepted |
+| `/api/v1/users` | Accepted | Accepted |
+| `/api/v1/system/storage` | Accepted | Accepted |
+| `/api/v1/system/ai/providers` | Accepted | Accepted |
+| `/mcp` | Not accepted | Required |
+
+## Common errors
+
+| HTTP status | Error code | Meaning |
+|---|---|---|
+| `401 Unauthorized` | `auth_unauthorized` | Missing or invalid JWT |
+| `401 Unauthorized` | `api_key_missing` | API key was not provided |
+| `401 Unauthorized` | `api_key_invalid` | API key is invalid or the header format is wrong |
+| `401 Unauthorized` | `auth_token_expired` | JWT expired |
+| `403 Forbidden` | `auth_forbidden` | Authenticated but not authorized |

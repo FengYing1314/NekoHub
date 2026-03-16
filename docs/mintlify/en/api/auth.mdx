@@ -1,0 +1,60 @@
+---
+title: "Auth"
+description: "Login, refresh, logout, current user, and bootstrap runtime info."
+---
+
+`login` and `refresh` are public. `logout` and `me` only accept JWT access tokens.
+
+## Login
+
+```http
+POST /api/v1/auth/login
+```
+
+Real responses are wrapped in `data` and include:
+
+- `accessToken`
+- `refreshToken`
+- `accessTokenExpiresAtUtc`
+- `refreshTokenExpiresAtUtc`
+- `user`
+
+The serialized role values are `superAdmin`, `admin`, and `user`.
+
+## Refresh
+
+```http
+POST /api/v1/auth/refresh
+```
+
+Returns the same structure as login.
+
+## Logout
+
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer <access_token>
+```
+
+Returns `204 No Content`.
+
+## Current user
+
+```http
+GET /api/v1/auth/me
+Authorization: Bearer <access_token>
+```
+
+## System bootstrap
+
+```http
+GET /api/v1/system/bootstrap
+```
+
+Returns:
+
+- `apiKeyRequired`
+- `maxUploadSizeBytes`
+- `allowedContentTypes`
+
+This endpoint reports runtime configuration only. It does not confirm whether the bootstrap `SuperAdmin` exists.

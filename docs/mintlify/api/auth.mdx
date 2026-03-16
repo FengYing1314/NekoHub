@@ -1,0 +1,152 @@
+---
+title: "认证接口"
+description: "登录、刷新、登出、当前用户与 bootstrap 运行信息。"
+---
+
+认证接口负责浏览器会话和当前用户信息。`login` 与 `refresh` 是公开接口，`logout` 和 `me` 只接受 JWT。
+
+---
+
+## Login
+
+```http
+POST /api/v1/auth/login
+```
+
+### Request body
+
+<ParamField body="username" type="string" required>
+  用户名。
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  密码。
+</ParamField>
+
+### Response
+
+```json
+{
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+    "refreshToken": "refresh-token-value",
+    "accessTokenExpiresAtUtc": "2026-04-08T12:15:00Z",
+    "refreshTokenExpiresAtUtc": "2026-05-08T12:00:00Z",
+    "user": {
+      "id": "01956f8d-0000-0000-0000-000000000001",
+      "username": "admin",
+      "role": "superAdmin",
+      "isActive": true,
+      "createdAtUtc": "2026-04-08T12:00:00Z",
+      "updatedAtUtc": "2026-04-08T12:00:00Z",
+      "lastLoginAtUtc": "2026-04-08T12:00:00Z",
+      "permissions": []
+    }
+  }
+}
+```
+
+---
+
+## Refresh
+
+```http
+POST /api/v1/auth/refresh
+```
+
+### Request body
+
+<ParamField body="refreshToken" type="string" required>
+  有效的 refresh token。
+</ParamField>
+
+### Response
+
+返回与 Login 相同的 `data` 结构，但 token 会轮换。
+
+---
+
+## Logout
+
+```http
+POST /api/v1/auth/logout
+```
+
+### Headers
+
+```text
+Authorization: Bearer <access_token>
+```
+
+### Request body
+
+<ParamField body="refreshToken" type="string" required>
+  要注销的 refresh token。
+</ParamField>
+
+### Response
+
+成功时返回 `204 No Content`。
+
+---
+
+## Current user
+
+```http
+GET /api/v1/auth/me
+```
+
+### Headers
+
+```text
+Authorization: Bearer <access_token>
+```
+
+### Response
+
+返回当前登录用户的 `data` 对象，字段与 `login.data.user` 一致。
+
+---
+
+## System bootstrap
+
+```http
+GET /api/v1/system/bootstrap
+```
+
+这是公开接口，用于返回当前运行实例的一些基础配置摘要。
+
+### Response
+
+```json
+{
+  "data": {
+    "apiKeyRequired": true,
+    "maxUploadSizeBytes": 10485760,
+    "allowedContentTypes": [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif"
+    ]
+  }
+}
+```
+
+### 字段说明
+
+<ResponseField name="apiKeyRequired" type="boolean">
+  当前部署是否启用了 API key。
+</ResponseField>
+
+<ResponseField name="maxUploadSizeBytes" type="integer">
+  后端当前允许的最大上传体积。
+</ResponseField>
+
+<ResponseField name="allowedContentTypes" type="array of strings">
+  当前允许上传的内容类型。
+</ResponseField>
+
+<Note>
+  这个端点不会告诉你 SuperAdmin 是否已经创建。它只是运行时配置摘要。
+</Note>

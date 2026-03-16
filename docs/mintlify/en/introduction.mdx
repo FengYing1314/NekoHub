@@ -1,0 +1,48 @@
+---
+title: "Introduction"
+description: "NekoHub is a self-hosted image asset management platform with a public gallery and a JWT-authenticated admin console."
+---
+
+## What is NekoHub?
+
+NekoHub is a self-hosted image asset management platform. You deploy it yourself, own your data, and control who can see what. It handles the full lifecycle of image assets — upload, store, organize, enrich with AI, and publish.
+
+## Two access surfaces
+
+NekoHub exposes two distinct front-end surfaces that share a single backend:
+
+<CardGroup cols={2}>
+  <Card title="Public gallery" icon="images" href="/quickstart">
+    Available at `/gallery` without login. Shows all assets marked as public. Every visitor to the same deployment sees the same shared set of public content.
+  </Card>
+  <Card title="Admin console" icon="lock" href="/quickstart">
+    Available at `/login` and the pages behind it (`/assets`, `/providers`, `/users`, etc.). Requires a username and password. Access is controlled by roles and permissions.
+  </Card>
+</CardGroup>
+
+## Key features
+
+- **Upload and manage images** — upload images through the `/assets` page, set visibility to public or private, and organize your library.
+- **Flexible storage backends** — store assets locally, on any S3-compatible object store, or in a GitHub repository. Switch providers from the `/providers` page.
+- **AI enrichment** — run AI skills against your assets (auto-tagging, captioning, etc.) using configured AI providers.
+- **REST API and MCP** — all management operations are available over the REST API, and the `/mcp` endpoint exposes NekoHub to AI tools and automation scripts.
+- **Role-based access** — manage multiple users with different roles and permission levels from the `/users` page.
+
+## Authentication overview
+
+NekoHub uses two authentication mechanisms:
+
+| Method | Used by |
+|--------|---------|
+| Username + password (JWT) | Browser-based admin console sessions. After login, your browser holds an access token and a refresh token. |
+| API key | Automation scripts, MCP clients, and any machine-to-machine integrations. The `/mcp` endpoint only accepts API keys. |
+
+On first deployment, a **SuperAdmin** account is created from environment variables you set. Additional users are managed inside the admin console after that — no additional environment configuration is needed per user.
+
+## Next steps
+
+Ready to get NekoHub running?
+
+<Card title="Quick Start" icon="rocket" href="/quickstart">
+  Deploy NekoHub with Docker Compose in minutes.
+</Card>

@@ -1,0 +1,89 @@
+---
+title: "管理用户"
+description: "在 NekoHub 中创建、更新、禁用用户并调整权限。"
+---
+
+NekoHub 不支持公开注册。所有账号都需要由有权限的管理员在后台或 API 中创建。
+
+<Warning>
+  用户不能自助注册，也没有自助找回密码或 MFA 流程。
+</Warning>
+
+## 前置条件
+
+你需要具备 `users.create`、`users.update`、`users.disable` 或 `users.managePermissions` 等相应权限。
+
+## 在后台创建用户
+
+1. 登录后台并进入 `/users`
+2. 点击 **New User**
+3. 填写用户名、初始密码、角色、启用状态
+4. 保存后用户即可从 `/login` 登录
+
+## 通过 API 创建用户
+
+```bash
+curl -X POST https://your-api-host/api/v1/users \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "jane",
+    "password": "a-secure-password",
+    "role": "user",
+    "isActive": true,
+    "permissions": []
+  }'
+```
+
+## 角色
+
+| 角色 | 说明 |
+|---|---|
+| `superAdmin` | 系统最高权限，只能通过 bootstrap 创建 |
+| `admin` | 拥有默认管理权限，但只能管理 `user` |
+| `user` | 默认权限较少，通常只读资产 |
+
+<Note>
+  `superAdmin` 不能通过 `/api/v1/users` 创建，也不能被普通管理员提升出来。
+</Note>
+
+## 授权或更新权限
+
+使用 `PATCH /api/v1/users/{id}/permissions`：
+
+```bash
+curl -X PATCH https://your-api-host/api/v1/users/<user-id>/permissions \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "permissions": ["assets.create", "assets.read", "assets.update"]
+  }'
+```
+
+这会直接替换该用户当前的显式权限列表。
+
+## 禁用或启用用户
+
+```bash
+curl -X POST https://your-api-host/api/v1/users/<user-id>/status \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"isActive": false}'
+```
+
+补充约束：
+
+- `superAdmin` 不能被禁用
+- 非 API key 登录的用户不能禁用自己
+- `admin` 不能管理 `admin` 或 `superAdmin`
+
+## 重置密码
+
+```bash
+curl -X POST https://your-api-host/api/v1/users/<user-id>/reset-password \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"newPassword": "new-secure-password"}'
+```
+
+成功返回 `204 No Content`。

@@ -1,0 +1,58 @@
+---
+title: "Assets"
+description: "An asset is an uploaded image managed by NekoHub, with metadata, visibility settings, and optional AI-generated enrichments."
+---
+
+An asset is the core unit in NekoHub. When you upload an image, NekoHub stores the file using your configured storage provider and creates an asset record that tracks everything about that image — its metadata, visibility, processing status, and any AI-generated enrichments.
+
+<Info>
+  All business data in NekoHub is shared across users. Assets are not owned by individual accounts — every authenticated user with the right permissions can view and manage all assets in the deployment.
+</Info>
+
+## Asset fields
+
+The following fields are available on every asset:
+
+| Field | Description |
+|---|---|
+| `id` | Unique identifier for the asset (UUID). |
+| `originalFileName` | The file name as uploaded (e.g. `hero-banner.png`). |
+| `contentType` | MIME type of the image (e.g. `image/png`, `image/jpeg`). |
+| `size` | File size in bytes. |
+| `width` | Image width in pixels (populated after processing). |
+| `height` | Image height in pixels (populated after processing). |
+| `isPublic` | Whether the asset is visible to anonymous visitors on the public gallery. |
+| `description` | A free-text description you can set to provide context about the image. |
+| `altText` | Accessibility text for the image, used when embedding in web pages. |
+| `status` | The current processing state of the asset (see [Asset statuses](#asset-statuses)). |
+| `storageProvider` | The type of storage backend where the file is held (e.g. `local`, `s3`, `github-repo`). |
+| `publicUrl` | The direct URL to access the asset publicly, when available from the storage provider. |
+
+## Asset statuses
+
+| Status | Meaning |
+|---|---|
+| `ready` | The asset has been fully processed and is accessible. The image file is stored, dimensions are recorded, and the asset can be served to the gallery (if public) or accessed via the API. |
+
+When an upload completes successfully, the asset moves to `ready` immediately. A `ready` asset means you can share its URL, run skills against it, and it will appear in the public gallery if `isPublic` is set to `true`.
+
+## Public vs private assets
+
+Every asset has an `isPublic` flag that controls who can access it:
+
+- **Public assets** (`isPublic: true`) — appear in the public gallery at `/gallery` and are accessible to anyone without logging in. Their content is served via a direct public URL.
+- **Private assets** (`isPublic: false`) — are not listed in the gallery and cannot be accessed without authentication. Authenticated admin users can view private asset content through the protected `/api/v1/assets/{id}/content` endpoint.
+
+You can toggle an asset's visibility at any time from the admin console or via the API.
+
+## Asset derivatives
+
+A derivative is a processed version of the original image produced by running an Asset Skill. For example, a skill might generate a resized thumbnail or a converted format variant. Each derivative has its own `contentType`, `size`, `width`, `height`, and `publicUrl`.
+
+Derivatives are listed on the asset detail view and are accessible alongside the original image.
+
+## Asset structured results
+
+A structured result is AI-generated metadata attached to an asset after a skill run. For example, an image captioning skill produces a structured result containing the generated caption as a JSON payload.
+
+Structured results are returned in the `structuredResults` array on the asset detail response. Each result includes a `kind` that identifies what type of enrichment it represents, and a `payloadJson` containing the actual data.

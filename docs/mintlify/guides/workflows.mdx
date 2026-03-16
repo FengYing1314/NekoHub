@@ -1,0 +1,147 @@
+---
+title: "工作流"
+description: "在工作流编辑器中编排可复用的资产处理流程，并在上传后自动运行或在资产详情页手动触发。"
+---
+
+## 当前工作流能力
+
+NekoHub 当前已经实现了工作流配置与执行的两部分能力：
+
+- **工作流配置管理**：在 `/workflows` 页面或 `/api/v1/system/workflows` 接口下创建、更新、删除、查看工作流 profile
+- **工作流执行**：
+  - 上传新资产后，如果某个 workflow 被设为 `autoRun`，后端会自动按该 workflow 排队执行
+  - 在资产详情页可手动选择一个 workflow，并调用 `/api/v1/assets/{id}/workflows/{workflowId}/run` 触发一次执行
+
+<Note>
+  当前版本的 workflow 图允许你在画布上拖拽节点和连线，但后端执行语义仍是**按节点保存顺序线性执行**。连线主要用于可视化表达处理顺序，不代表并行或分支执行。
+</Note>
+
+## 前置条件
+
+- 当前用户具备 `settings.read` 才能查看 `/workflows`
+- 当前用户具备 `settings.update` 才能创建、修改、删除或设置自动运行 workflow
+- 如果 workflow 中包含 `ai-caption`，还需要存在 active 的 AI provider profile，否则该步骤会失败
+- workflow 目前主要面向图片资产；后端会在执行前检查 skill 是否适用于当前 asset
+
+## 在后台管理 workflow
+
+### 打开 workflow 编辑器
+
+1. 登录管理后台
+2. 进入 `/workflows`
+3. 在左侧 **可用技能** 中选择并拖拽节点到画布
+4. 在右侧配置工作流名称、描述和是否自动运行
+5. 保存后即可复用
+
+### 当前已开放的节点
+
+根据前端技能目录与后端解析器，当前 workflow 编辑器已开放这些节点：
+
+| 节点 | skillId | 说明 |
+| --- | --- | --- |
+| 缩略图 | `thumbnail` | 生成适合列表和详情页预览的缩略图 |
+| 智能说明 | `ai-caption` | 调用当前 active AI provider 生成说明文本 |
+| 清理 Exif | `exif-strip` | 去除原图中的 Exif 元数据 |
+| 格式转换 | `format-convert` | 转换图片格式，可配置目标格式与是否保留原图 |
+| 水印 | `watermark` | 叠加文字水印，可配置透明度、字号和位置 |
+
+### 当前可配置参数
+
+并不是所有节点都有额外参数。当前前端已经支持这些参数化节点：
+
+#### `format-convert`
+
+- `TargetFormat`
+  - 可选值：`webp`、`jpeg`、`png`、`gif`、`bmp`、`tga`、`tiff`
+- `KeepOriginal`
+  - 是否保留原始文件
+
+#### `watermark`
+
+- `Text`
+- `Opacity`
+- `FontSize`
+- `Position`
+  - 可选值：`BottomRight`、`BottomLeft`、`Center`、`TopRight`、`TopLeft`
+
+## 自动运行 workflow
+
+一个 workflow profile 可以被标记为 `isAutoRun=true`。
+
+当前行为是：
+
+- 同一时刻最多只允许一个 auto-run workflow
+- 当你把某个 workflow 设为自动运行时，后端会自动取消其他 workflow 的 `isAutoRun`
+- 上传资产且 `runEnrichment=true` 时，后端会：
+  1. 先检查是否存在 auto-run workflow
+  2. 如果存在，则按 workflow 的节点顺序解析并入队
+  3. 如果不存在，则回退到默认创建后技能集合
+
+<Tip>
+  当前“上传后自动运行 workflow”仍复用了上传时的 `runEnrichment` 开关。也就是说，如果上传时显式传 `runEnrichment=false`，auto-run workflow 也不会被触发。
+</Tip>
+
+## 在资产详情页手动运行 workflow
+
+资产详情页会加载 workflow 列表，并默认优先选中自动运行 workflow；如果没有 auto-run workflow，则回退到第一个 workflow。
+
+手动运行适合这些场景：
+
+- 某个资产上传时跳过了自动处理
+- 你想用不同 workflow 重跑某张图
+- 你修改了 workflow 后，想对现有资产重新执行
+
+调用接口：
+
+```http
+POST /api/v1/assets/{id}/workflows/{workflowId}/run
+```
+
+需要权限：`assets.update`
+
+成功时返回 `202 Accepted`，表示该 workflow 已经被排队，而不是在当前 HTTP 请求中同步跑完。
+
+## 一个最小 workflow 图结构
+
+后端要求 `graphJson` 是合法 JSON 对象，至少包含 `nodes` 数组。节点优先使用 `data.skillId` 作为 skill 标识；缺失时才回退到旧图里的 `type`。
+
+最小示例：
+
+```json
+{
+  "nodes": [
+    {
+      "id": "node-1",
+      "data": {
+        "skillId": "thumbnail"
+      }
+    },
+    {
+      "id": "node-2",
+      "data": {
+        "skillId": "ai-caption"
+      }
+    }
+  ],
+  "edges": [],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  }
+}
+```
+
+## 已知边界
+
+- 当前执行模型仍是线性顺序，不支持真正的分支控制、条件判断或并行执行
+- 工作流目前没有单独的 Mintlify 概念页，实际行为以代码和接口为准
+- `ai-caption` 依赖 active AI provider profile
+- 后端会在入队前检查 workflow 中的 skill 是否适用于该 asset；例如非图片资产不会通过图片技能校验
+- 如果 `graphJson` 无法解析，前端编辑器会回退为空白画布并给出提示
+
+## 相关接口
+
+- Workflow profile 管理：[/api/workflows](/api/workflows)
+- 手动运行 workflow：[/api/assets](/api/assets)
+- AI provider 配置：[/api/ai-providers](/api/ai-providers)

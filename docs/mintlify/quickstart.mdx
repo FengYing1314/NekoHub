@@ -1,0 +1,105 @@
+---
+title: "快速开始"
+description: "使用 Docker Compose 启动 NekoHub，并完成第一次登录和上传。"
+---
+
+<Note>
+  **上线前一定要替换默认密钥。** `.env.example` 里的 JWT 密钥、SuperAdmin 密码和 API key 都只是占位值，不能直接暴露到公网。
+</Note>
+
+<Steps>
+  <Step title="复制环境变量文件">
+    克隆仓库后，在项目根目录复制示例配置：
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    至少修改这些值：
+
+    ```env
+    Auth__Jwt__Secret=replace-with-a-strong-random-secret-32chars-min
+    Auth__BootstrapSuperAdmin__Username=admin
+    Auth__BootstrapSuperAdmin__Password=replace-with-a-strong-password
+    FRONTEND_VITE_API_BASE_URL=http://localhost:5121
+    ```
+
+    如果你需要 MCP 或脚本访问，再额外启用 API key：
+
+    ```env
+    Auth__ApiKey__Enabled=true
+    Auth__ApiKey__Keys__0=replace-with-a-strong-random-api-key
+    ```
+  </Step>
+
+  <Step title="启动容器">
+    在仓库根目录执行：
+
+    ```bash
+    docker compose up -d --build
+    ```
+
+    默认会启动以下服务：
+
+    | 服务 | 默认地址 |
+    |---|---|
+    | 前端 | `http://localhost:5173` |
+    | 后端 API | `http://localhost:5121` |
+    | PostgreSQL | `localhost:5432` |
+  </Step>
+
+  <Step title="验证后端是否可用">
+    先检查健康状态：
+
+    ```bash
+    curl http://localhost:5121/api/v1/system/ping
+    ```
+
+    再查看运行时引导信息：
+
+    ```bash
+    curl http://localhost:5121/api/v1/system/bootstrap
+    ```
+
+    `bootstrap` 端点会返回 `apiKeyRequired`、`maxUploadSizeBytes` 和 `allowedContentTypes`。它用于让前端了解当前运行配置，不用于确认 SuperAdmin 是否已经创建。
+  </Step>
+
+  <Step title="登录管理后台">
+    打开 [http://localhost:5173/login](http://localhost:5173/login)。
+
+    使用你在 `.env` 中设置的 `Auth__BootstrapSuperAdmin__Username` 和 `Auth__BootstrapSuperAdmin__Password` 登录。
+
+    注意：只有在数据库里尚不存在 `SuperAdmin` 时，首次启动才会自动创建该账号。如果你换了一套新环境变量但沿用了旧数据库，旧账号不会被覆盖。
+  </Step>
+
+  <Step title="上传第一张图片">
+    打开 [http://localhost:5173/assets](http://localhost:5173/assets)，点击 **Upload** 上传图片。
+
+    上传后你可以：
+
+    - 切换 `isPublic` 让它出现在公开画廊
+    - 在资产详情页运行 AI 技能
+    - 进入 `/workflows` 配置可复用 workflow，并决定是否在上传后自动运行
+    - 复制公开地址或受保护内容地址
+  </Step>
+
+  <Step title="浏览公开画廊">
+    打开 [http://localhost:5173/gallery](http://localhost:5173/gallery)。
+
+    只有 `isPublic=true` 且状态为 `ready` 的资产会展示在这里。
+  </Step>
+</Steps>
+
+## 接下来做什么
+
+<CardGroup cols={2}>
+  <Card title="部署说明" icon="server" href="/deployment">
+    查看反向代理、域名、HTTPS、分域部署和生产注意事项。
+  </Card>
+  <Card title="工作流" icon="diagram-project" href="/guides/workflows">
+    了解如何配置 workflow profile、自动运行和资产详情页手动触发。
+  </Card>
+  <Card title="存储 Provider" icon="database" href="/concepts/storage-providers">
+    了解如何从默认本地存储切换到 S3 兼容存储或 GitHub Repo。
+  </Card>
+</CardGroup>

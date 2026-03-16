@@ -1,0 +1,51 @@
+---
+title: "AI 技能"
+description: "在资产上运行 AI 技能，并查看结构化结果与派生文件。"
+---
+
+## 前置条件
+
+- 已存在至少一个可访问的资产
+- 已配置并激活 AI provider profile
+- 当前用户具备 `assets.update` 等相关权限
+
+<Warning>
+  如果没有 active AI provider profile，技能运行会失败。
+</Warning>
+
+## 查看可用技能
+
+```bash
+curl http://localhost:5121/api/v1/assets/skills \
+  -H "Authorization: Bearer <JWT_OR_API_KEY>"
+```
+
+当前常见的内置技能是 `basic_image_enrich`，会生成缩略图和基础描述。
+
+## 手动运行技能
+
+```bash
+curl -X POST http://localhost:5121/api/v1/assets/<asset-id>/skills/basic_image_enrich/run \
+  -H "Authorization: Bearer <JWT_OR_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### 响应
+
+成功时会返回：
+
+- `succeeded`
+- `skillName`
+- 每个 step 的执行结果
+- 更新后的资产详情
+
+## 上传时自动运行 enrichment
+
+上传资产时把 `runEnrichment` 设为 `true`，后端会在上传后触发 enrichment 流程。
+
+## 结果存放位置
+
+- 生成的派生文件会出现在 `derivatives`
+- 结构化 AI 结果会出现在 `structuredResults`
+- 最近一次执行摘要会出现在 `latestExecutionSummary`

@@ -1,0 +1,67 @@
+---
+title: "NekoHub 文档"
+description: "自托管图片资产管理平台，支持公开画廊、管理后台、REST API 与 MCP 集成。"
+---
+
+欢迎使用 NekoHub。你可以上传和管理图片资产，对外展示公开内容，并通过 REST API 或 MCP 接入自动化与 Agent 工作流。
+
+<CardGroup cols={2}>
+  <Card title="快速开始" icon="rocket" href="/quickstart">
+    用 Docker Compose 启动 NekoHub，并在几分钟内完成第一次上传。
+  </Card>
+  <Card title="API 参考" icon="code" href="/api/overview">
+    查看所有公开接口、鉴权方式、请求示例和响应结构。
+  </Card>
+  <Card title="存储 Provider" icon="database" href="/concepts/storage-providers">
+    了解本地、S3 兼容存储和 GitHub Repo 的差异与适用场景。
+  </Card>
+  <Card title="MCP 集成" icon="robot" href="/guides/mcp-integration">
+    通过 `/mcp` 端点把 NekoHub 接到 AI Agent 或自动化工具链。
+  </Card>
+  <Card title="工作流" icon="diagram-project" href="/guides/workflows">
+    编排可复用的资产处理流程，并在上传后自动运行或手动触发。
+  </Card>
+</CardGroup>
+
+## NekoHub 如何工作
+
+NekoHub 由两个前端访问面和一套共享后端组成：
+
+- **公开画廊**（`/gallery`）：匿名访问，只展示公开且已就绪的资产
+- **管理后台**（`/login`、`/assets`、`/workflows`、`/providers`、`/users` 等）：通过用户名密码登录，使用 JWT 会话管理资产、用户、存储、AI 配置和 workflow
+- **REST API / MCP**：供脚本、第三方应用和 Agent 工作流调用
+
+<Steps>
+  <Step title="部署 NekoHub">
+    准备数据库连接、JWT 密钥、初始超级管理员账号，然后用 Docker Compose 启动。
+  </Step>
+  <Step title="登录管理后台">
+    打开 `http://localhost:5173/login`，用首次部署时配置的账号密码登录。
+  </Step>
+  <Step title="上传第一张图片">
+    进入 `/assets` 上传图片，可设置公开性、描述、替代文本以及是否运行 AI 技能。
+  </Step>
+  <Step title="共享或集成">
+    公开资产可在 `/gallery` 展示；受保护接口可走 REST API；机器集成可走 API key 或 MCP。
+  </Step>
+</Steps>
+
+## 核心能力
+
+<CardGroup cols={2}>
+  <Card title="公开画廊" icon="images" href="/concepts/access-model">
+    把公开资产提供给匿名访客访问，不需要登录。
+  </Card>
+  <Card title="基于角色和权限的访问控制" icon="shield-halved" href="/guides/managing-users">
+    用 `superAdmin`、`admin`、`user` 角色与细粒度权限管理系统访问边界。
+  </Card>
+  <Card title="AI 技能" icon="wand-magic-sparkles" href="/guides/ai-skills">
+    在图片上运行缩略图生成、基础描述生成等技能，并保存结构化结果。
+  </Card>
+  <Card title="工作流编辑器" icon="diagram-project" href="/guides/workflows">
+    用节点画布组合多个技能，保存为可复用的 workflow profile。
+  </Card>
+  <Card title="多存储 Provider" icon="cloud" href="/guides/storage-setup">
+    按部署需求选择本地磁盘、S3 兼容对象存储或 GitHub Repo。
+  </Card>
+</CardGroup>

@@ -1,0 +1,51 @@
+---
+title: "公开资产接口"
+description: "匿名读取公开资产列表、详情和公开内容。"
+---
+
+这些接口不需要鉴权，只会返回 `isPublic=true` 且状态为 `ready` 的资产。
+
+---
+
+## List public assets
+
+```http
+GET /api/v1/public/assets
+```
+
+### Query parameters
+
+| 参数 | 说明 |
+|---|---|
+| `page` | 页码，默认 `1` |
+| `pageSize` | 每页条数，默认由后端决定 |
+| `query` | 关键字 |
+
+### Response
+
+返回分页结构：
+
+- `items`
+- `page`
+- `pageSize`
+- `total`
+
+---
+
+## Get public asset
+
+```http
+GET /api/v1/public/assets/{id}
+```
+
+返回单个公开资产详情，包括公开地址和派生文件摘要。
+
+---
+
+## Serve public content
+
+```http
+GET /content/{storageKey}
+```
+
+用于直接读取公开内容流。私有资产不会通过这个端点暴露；私有内容应通过受保护的 `/api/v1/assets/{id}/content` 访问。

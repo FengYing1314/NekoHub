@@ -1,0 +1,150 @@
+---
+title: "Storage Setup"
+description: "Configure where NekoHub stores uploaded image assets using local disk, S3-compatible object storage, or a GitHub repository."
+---
+
+NekoHub supports multiple storage backends through **storage provider profiles**. You can create several profiles (for example, a local profile for development and an S3 profile for production) and designate one as the default. When you upload an asset without specifying a storage provider, NekoHub uses the default profile.
+
+## Add a storage provider via the admin console
+
+<Steps>
+  <Step title="Open the Providers page">
+    Navigate to `/providers` in the admin console.
+  </Step>
+  <Step title="Click New Provider">
+    Click the **New Provider** button.
+  </Step>
+  <Step title="Choose a provider type and configure it">
+    Select one of the supported provider types (Local, S3, or GitHub Repo) and fill in the required fields. See [Provider configuration](#provider-configuration) below for the fields specific to each type.
+  </Step>
+  <Step title="Save">
+    Click **Create**. The profile is now available for use when uploading assets.
+  </Step>
+  <Step title="Set as default (optional)">
+    To make this the default provider, open the profile and click **Set as Default**, or use the API endpoint described in [Setting the default provider](#setting-the-default-provider).
+  </Step>
+</Steps>
+
+## Create a storage provider via the API
+
+Send a POST request to `/api/v1/system/storage/providers`. Pass provider-specific configuration in the `configuration` and `secretConfiguration` objects.
+
+```bash
+curl -X POST https://your-api-host/api/v1/system/storage/providers \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-s3",
+    "displayName": "Production S3",
+    "providerType": "s3",
+    "isEnabled": true,
+    "isDefault": false,
+    "configuration": {
+      "endpoint": "https://s3.amazonaws.com",
+      "bucket": "my-nekohub-bucket",
+      "region": "us-east-1",
+      "forcePathStyle": false,
+      "publicBaseUrl": "https://my-nekohub-bucket.s3.amazonaws.com"
+    },
+    "secretConfiguration": {
+      "accessKey": "AKIAIOSFODNN7EXAMPLE",
+      "secretKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    }
+  }'
+```
+
+## Provider configuration
+
+### Local
+
+Stores files on the server's local filesystem. Suitable for single-server deployments and development.
+
+| Field | Description |
+|---|---|
+| `rootPath` | Absolute path on the server where asset files are stored (e.g. `/app/storage/assets`) |
+
+```json
+{
+  "providerType": "local",
+  "configuration": {
+    "rootPath": "/app/storage/assets"
+  }
+}
+```
+
+### S3-compatible
+
+Stores files in any S3-compatible object storage service, including Amazon S3, MinIO, Cloudflare R2, and others.
+
+| Field | Description |
+|---|---|
+| `endpoint` | The S3 API endpoint URL |
+| `bucket` | The bucket name |
+| `region` | The AWS region (e.g. `us-east-1`) |
+| `accessKey` | The access key ID (treat as a secret) |
+| `secretKey` | The secret access key (treat as a secret) |
+| `forcePathStyle` | Set to `true` for MinIO and other path-style endpoints |
+| `publicBaseUrl` | Base URL for constructing public asset URLs (e.g. `https://my-bucket.s3.amazonaws.com`) |
+
+```json
+{
+  "providerType": "s3",
+  "configuration": {
+    "endpoint": "http://minio:9000",
+    "bucket": "nekohub",
+    "region": "us-east-1",
+    "forcePathStyle": true,
+    "publicBaseUrl": "http://localhost:9000/nekohub"
+  },
+  "secretConfiguration": {
+    "accessKey": "minioadmin",
+    "secretKey": "minioadmin"
+  }
+}
+```
+
+### GitHub Repo
+
+<Warning>
+  GitHub Repo storage is experimental. It is better suited as a secondary or archive store rather than primary object storage. Prefer Local or S3 for high-volume or production use.
+</Warning>
+
+Stores assets as files committed directly to a GitHub repository. Useful for public static asset hosting via `raw.githubusercontent.com`.
+
+| Field | Description |
+|---|---|
+| `owner` | GitHub organization or user that owns the repository |
+| `repo` | Repository name |
+| `ref` | Branch or tag to commit to (e.g. `main`) |
+| `basePath` | Directory path within the repository where assets are stored |
+| `token` | GitHub personal access token with repo write permission (treat as a secret) |
+| `visibilityPolicy` | Controls public URL behavior — use `public-only` for public repos |
+
+```json
+{
+  "providerType": "github-repo",
+  "configuration": {
+    "owner": "your-org",
+    "repo": "your-assets-repo",
+    "ref": "main",
+    "basePath": "assets/images",
+    "visibilityPolicy": "public-only"
+  },
+  "secretConfiguration": {
+    "token": "ghp_yourGitHubPersonalAccessToken"
+  }
+}
+```
+
+## Setting the default provider
+
+To designate a provider profile as the default, send a POST request to `/api/v1/system/storage/providers/{id}/set-default`:
+
+```bash
+curl -X POST https://your-api-host/api/v1/system/storage/providers/<profile-id>/set-default \
+  -H "Authorization: Bearer <access_token>"
+```
+
+<Tip>
+  The default storage provider is used automatically when you upload an asset without specifying a `storageProviderProfileId`. You can still route individual uploads to a different provider by passing the profile's UUID in the upload request.
+</Tip>

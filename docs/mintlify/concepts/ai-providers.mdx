@@ -1,0 +1,48 @@
+---
+title: "AI Provider"
+description: "NekoHub 如何配置模型服务连接，并把它用于资产技能。"
+---
+
+AI provider profile 描述了 NekoHub 访问模型服务所需的连接信息，包括 API 基础地址、API key、模型名和默认 system prompt。
+
+## AI Provider Profile
+
+每个 profile 通常包含：
+
+| 字段 | 说明 |
+|---|---|
+| `name` | profile 名称 |
+| `apiBaseUrl` | AI 服务基础地址 |
+| `apiKey` | 调用外部模型服务使用的密钥 |
+| `modelName` | 模型标识 |
+| `defaultSystemPrompt` | 默认 system prompt |
+| `isActive` | 是否为当前激活 profile |
+
+## Active Provider
+
+同一时间只允许一个 active profile。当前激活的 profile 会用于：
+
+- 上传后自动运行的 enrichment
+- 手动触发的资产技能
+- AI provider 测试接口的默认行为
+
+如果当前没有 active profile，依赖 AI 的技能会失败。
+
+## 测试 Profile
+
+你可以通过 `POST /api/v1/system/ai/providers/test` 测试现有 profile 或临时参数组合，确认：
+
+- API 基础地址可访问
+- API key 可用
+- 模型名正确
+- 当前模型具备图片处理能力
+
+## AI Provider 与资产技能
+
+NekoHub 当前内置的技能会把图片发送给 active AI provider，然后把结果回写到资产上，例如：
+
+- 生成基础描述
+- 生成结构化结果
+- 结合后处理流程产生可读字段或派生数据
+
+如果没有可用的 active profile，技能接口虽然仍然存在，但运行时会失败。

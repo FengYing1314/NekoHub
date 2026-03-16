@@ -1,0 +1,146 @@
+---
+title: "Workflows"
+description: "Build reusable asset-processing workflows in the workflow editor, then run them automatically after upload or manually from an asset detail page."
+---
+
+## Current workflow capabilities
+
+NekoHub already implements both workflow configuration and workflow execution:
+
+- **Workflow profile management**: create, update, delete, and inspect workflow profiles from `/workflows` or `/api/v1/system/workflows`
+- **Workflow execution**:
+  - after a new asset is uploaded, the backend automatically queues the workflow marked as `autoRun`
+  - from an asset detail page, you can manually trigger `POST /api/v1/assets/{id}/workflows/{workflowId}/run`
+
+<Note>
+  The workflow graph supports draggable nodes and visual edges, but the backend execution model is still **linear and node-order-based**. Edges are mainly for visualizing intent and order; they do not currently create branching or parallel execution semantics.
+</Note>
+
+## Prerequisites
+
+- You need `settings.read` to open `/workflows`
+- You need `settings.update` to create, modify, delete, or mark a workflow as auto-run
+- If a workflow contains `ai-caption`, an active AI provider profile must exist or that step will fail
+- Workflows currently target image assets; the backend validates whether each skill is supported for the current asset before queueing
+
+## Manage workflows in the admin console
+
+### Open the workflow editor
+
+1. Sign in to the admin console
+2. Open `/workflows`
+3. Drag skills from the **Available skills** palette onto the canvas
+4. Set the workflow name, description, and auto-run state
+5. Save the workflow for reuse
+
+### Currently available nodes
+
+Based on the frontend skill catalog and backend skill resolver, the current workflow editor exposes these nodes:
+
+| Node | `skillId` | Purpose |
+| --- | --- | --- |
+| Thumbnail | `thumbnail` | Generate a thumbnail suitable for list and detail previews |
+| AI caption | `ai-caption` | Generate descriptive text with the currently active AI provider |
+| Strip Exif | `exif-strip` | Remove Exif metadata from the original image |
+| Format convert | `format-convert` | Convert the image format, with configurable output format and original retention |
+| Watermark | `watermark` | Draw a text watermark with configurable opacity, size, and position |
+
+### Current configurable parameters
+
+Not every node has extra parameters. The frontend currently supports parameter editing for these nodes:
+
+#### `format-convert`
+
+- `TargetFormat`
+  - supported values: `webp`, `jpeg`, `png`, `gif`, `bmp`, `tga`, `tiff`
+- `KeepOriginal`
+  - whether to keep the original file
+
+#### `watermark`
+
+- `Text`
+- `Opacity`
+- `FontSize`
+- `Position`
+  - supported values: `BottomRight`, `BottomLeft`, `Center`, `TopRight`, `TopLeft`
+
+## Auto-run workflows
+
+A workflow profile can be marked with `isAutoRun=true`.
+
+Current behavior:
+
+- only one auto-run workflow can exist at a time
+- when you mark one workflow as auto-run, the backend clears `isAutoRun` on the others
+- when an asset is uploaded with `runEnrichment=true`, the backend:
+  1. checks whether an auto-run workflow exists
+  2. if one exists, parses its nodes in saved order and queues them
+  3. otherwise falls back to the default post-upload skill set
+
+<Tip>
+  Auto-run workflows still reuse the upload-time `runEnrichment` switch. If you upload with `runEnrichment=false`, the auto-run workflow is skipped as well.
+</Tip>
+
+## Run a workflow manually from an asset detail page
+
+The asset detail page loads the workflow list and prefers the auto-run workflow by default. If none is marked as auto-run, it falls back to the first workflow in the list.
+
+Manual runs are useful when:
+
+- an asset was uploaded without automatic processing
+- you want to rerun an existing asset with a different workflow
+- you changed a workflow and want to apply it to existing assets
+
+Call:
+
+```http
+POST /api/v1/assets/{id}/workflows/{workflowId}/run
+```
+
+Required permission: `assets.update`
+
+The endpoint returns `202 Accepted`, which means the workflow was queued rather than completed synchronously in the current HTTP request.
+
+## Minimal workflow graph JSON
+
+The backend requires `graphJson` to be a valid JSON object with at least a `nodes` array. Nodes prefer `data.skillId` as the executable skill identifier and only fall back to the legacy `type` field when `data.skillId` is missing.
+
+Minimal example:
+
+```json
+{
+  "nodes": [
+    {
+      "id": "node-1",
+      "data": {
+        "skillId": "thumbnail"
+      }
+    },
+    {
+      "id": "node-2",
+      "data": {
+        "skillId": "ai-caption"
+      }
+    }
+  ],
+  "edges": [],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  }
+}
+```
+
+## Known boundaries
+
+- execution is still linear; there is no real branching, conditional logic, or parallel execution yet
+- `ai-caption` depends on an active AI provider profile
+- the backend validates skill compatibility before queueing; unsupported skills for the current asset type are rejected
+- if `graphJson` cannot be parsed, the frontend editor falls back to an empty canvas and shows a warning
+
+## Related endpoints
+
+- Workflow profile management: [/api/workflows](/api/workflows)
+- Manual workflow execution on assets: [/api/assets](/api/assets)
+- AI provider configuration: [/api/ai-providers](/api/ai-providers)

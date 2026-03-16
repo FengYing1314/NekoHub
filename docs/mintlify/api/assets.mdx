@@ -1,0 +1,209 @@
+---
+title: "资产接口"
+description: "上传、查询、修改、删除资产，以及运行技能和读取内容。"
+---
+
+所有资产管理接口都需要鉴权，并受 `assets.*` 权限控制。
+
+---
+
+## Upload asset
+
+```http
+POST /api/v1/assets
+Content-Type: multipart/form-data
+```
+
+需要权限：`assets.create`
+
+### Request fields
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `file` | 是 | 图片文件 |
+| `description` | 否 | 描述，最长 1000 字符 |
+| `altText` | 否 | 替代文本，最长 1000 字符 |
+| `isPublic` | 否 | 是否公开，默认 `true` |
+| `storageProviderProfileId` | 否 | 指定写入的 storage profile |
+| `runEnrichment` | 否 | 是否运行 enrichment，默认 `true` |
+| `commitMessage` | 否 | GitHub Repo 等 provider 使用的提交消息 |
+
+### Response
+
+成功返回 `202 Accepted`：
+
+```json
+{
+  "data": {
+    "id": "01956f8d-88e4-7c6a-a8f1-5f235293db7a",
+    "type": "image",
+    "status": "ready",
+    "originalFileName": "kitten.png",
+    "contentType": "image/png",
+    "size": 183204,
+    "storageProvider": "local",
+    "storageKey": "2026/03/10/...",
+    "publicUrl": "https://localhost:7151/content/...",
+    "isPublic": true
+  }
+}
+```
+
+### 常见错误
+
+- `asset_file_required`
+- `asset_file_empty`
+- `asset_file_too_large`
+- `asset_content_type_not_allowed`
+- `asset_description_too_long`
+- `asset_alt_text_too_long`
+
+---
+
+## List assets
+
+```http
+GET /api/v1/assets
+```
+
+需要权限：`assets.read`
+
+支持的常见查询参数：
+
+- `page`
+- `pageSize`
+- `query` / `keyword`
+- `contentType`
+- `status`
+- `orderBy` / `sortBy`
+- `orderDirection` / `sortDirection`
+
+认证方式可以是 JWT 或 Bearer API key：
+
+```bash
+curl "http://localhost:5121/api/v1/assets?page=1&pageSize=20" \
+  -H "Authorization: Bearer <JWT_OR_API_KEY>"
+```
+
+---
+
+## Get asset
+
+```http
+GET /api/v1/assets/{id}
+```
+
+需要权限：`assets.read`
+
+返回完整资产详情，包括：
+
+- 基础文件信息
+- `derivatives`
+- `structuredResults`
+- `latestExecutionSummary`
+
+---
+
+## Patch asset metadata
+
+```http
+PATCH /api/v1/assets/{id}
+```
+
+需要权限：`assets.update`
+
+可更新：
+
+- `description`
+- `altText`
+- `originalFileName`
+- `isPublic`
+
+---
+
+## Delete asset
+
+```http
+DELETE /api/v1/assets/{id}
+```
+
+需要权限：`assets.delete`
+
+可选请求体：
+
+```json
+{
+  "commitMessage": "optional message"
+}
+```
+
+---
+
+## Batch delete assets
+
+```http
+POST /api/v1/assets/batch-delete
+```
+
+需要权限：`assets.delete`
+
+请求体是资产 ID 数组。
+
+---
+
+## Get asset content
+
+```http
+GET /api/v1/assets/{id}/content
+```
+
+需要权限：`assets.read`
+
+行为分两种：
+
+- 公开资产：返回 307 跳转到公开内容地址
+- 私有资产：直接返回内容流
+
+---
+
+## List available skills
+
+```http
+GET /api/v1/assets/skills
+```
+
+需要权限：`assets.read`
+
+当前常见技能是 `basic_image_enrich`。
+
+---
+
+## Run skill
+
+```http
+POST /api/v1/assets/{id}/skills/{skillName}/run
+```
+
+需要权限：`assets.update`
+
+可选请求体：
+
+```json
+{
+  "parameters": {}
+}
+```
+
+成功时返回执行结果和更新后的资产。
+
+---
+
+## Get usage statistics
+
+```http
+GET /api/v1/assets/usage-stats
+```
+
+需要权限：`assets.read`
+
+返回总体资产数、总大小、派生文件数和按内容类型聚合的统计。

@@ -1,0 +1,102 @@
+---
+title: "Environment Variables"
+description: "Reference for the environment variables used by a NekoHub deployment."
+---
+
+NekoHub is configured through environment variables. With Docker Compose, copy `.env.example` to `.env` and update the values.
+
+```bash
+cp .env.example .env
+```
+
+<Warning>
+  Do not use placeholder values in production. Replace `Auth__Jwt__Secret`, `Auth__BootstrapSuperAdmin__Password`, and all API keys before first deployment.
+</Warning>
+
+## Database
+
+<ParamField path="Persistence__Database__ConnectionString" type="string" required>
+  PostgreSQL connection string.
+</ParamField>
+
+<ParamField path="Persistence__Database__Provider" type="string" default="postgresql">
+  Database provider. The current codebase supports `postgresql`.
+</ParamField>
+
+## JWT
+
+<ParamField path="Auth__Jwt__Secret" type="string" required>
+  JWT signing secret. Use at least 32 characters.
+</ParamField>
+
+<ParamField path="Auth__Jwt__Issuer" type="string" default="NekoHub">
+  JWT issuer (`iss`) claim. Signed and validated by the backend.
+</ParamField>
+
+<ParamField path="Auth__Jwt__Audience" type="string" default="NekoHub.Admin">
+  JWT audience (`aud`) claim. Signed and validated by the backend.
+</ParamField>
+
+<ParamField path="Auth__Jwt__AccessTokenMinutes" type="number" default="15">
+  Access token lifetime in minutes.
+</ParamField>
+
+<ParamField path="Auth__Jwt__RefreshTokenDays" type="number" default="30">
+  Refresh token lifetime in days.
+</ParamField>
+
+## Bootstrap super admin
+
+<ParamField path="Auth__BootstrapSuperAdmin__Username" type="string" required>
+  Username for the initial `SuperAdmin`.
+</ParamField>
+
+<ParamField path="Auth__BootstrapSuperAdmin__Password" type="string" required>
+  Password for the initial `SuperAdmin`.
+</ParamField>
+
+<Note>
+  Bootstrap only runs when the database has no `SuperAdmin`. Changing these values later does not overwrite an existing account.
+</Note>
+
+## API key
+
+<ParamField path="Auth__ApiKey__Enabled" type="boolean" default="false">
+  Enables API key authentication. When disabled, `/mcp` and Bearer API key requests are rejected.
+</ParamField>
+
+<ParamField path="Auth__ApiKey__Keys__0" type="string">
+  The first API key. Add more keys as `Keys__1`, `Keys__2`, and so on.
+</ParamField>
+
+## Storage
+
+<ParamField path="Storage__Provider" type="string" required>
+  Runtime provider selection. Supported values are `local`, `s3`, and `github-repo`.
+</ParamField>
+
+<ParamField path="Storage__PublicBaseUrl" type="string" required>
+  Public URL prefix used for browser-reachable content links.
+</ParamField>
+
+<ParamField path="Storage__Local__RootPath" type="string" default="/app/storage/assets">
+  Local filesystem path used by the `local` provider.
+</ParamField>
+
+## Frontend
+
+<ParamField path="FRONTEND_VITE_API_BASE_URL" type="string" required>
+  Base URL the browser uses to reach the API. Leave empty for same-origin reverse proxies.
+</ParamField>
+
+<ParamField path="FRONTEND_VITE_ALLOWED_HOSTS" type="string" default="true">
+  Allowed hosts for the Vite preview server.
+</ParamField>
+
+<ParamField path="FRONTEND_VITE_MAX_UPLOAD_SIZE_BYTES" type="number" default="10485760">
+  Frontend upload size limit in bytes.
+</ParamField>
+
+<ParamField path="FRONTEND_PORT" type="number" default="5173">
+  Frontend container port.
+</ParamField>

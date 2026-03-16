@@ -1,0 +1,104 @@
+---
+title: "存储 Provider 接口"
+description: "查看、创建、更新和切换 storage profile。"
+---
+
+存储 provider 接口用于管理资产写入和读取所依赖的 storage profile。所有接口都需要鉴权。
+
+---
+
+## Get storage providers overview
+
+```http
+GET /api/v1/system/storage/providers
+```
+
+需要权限：`providers.read`
+
+该接口返回：
+
+- `profiles`
+- `defaultProfile`
+- `defaultWriteProfile`
+- `runtime`
+- `alignment`
+
+它能帮助你判断“当前运行时 provider”和“数据库默认 profile”是否一致。
+
+---
+
+## Create storage profile
+
+```http
+POST /api/v1/system/storage/providers
+```
+
+需要权限：`providers.create`
+
+请求体需要包含：
+
+- `name`
+- `displayName`
+- `providerType`
+- `isEnabled`
+- `isDefault`
+- `configuration`
+- `secretConfiguration`
+
+---
+
+## Update storage profile
+
+```http
+PATCH /api/v1/system/storage/providers/{id}
+```
+
+需要权限：`providers.update`
+
+采用 patch 语义，只更新你显式提交的字段。
+
+---
+
+## Delete storage profile
+
+```http
+DELETE /api/v1/system/storage/providers/{id}
+```
+
+需要权限：`providers.delete`
+
+---
+
+## Set default storage profile
+
+```http
+POST /api/v1/system/storage/providers/{id}/set-default
+```
+
+需要权限：`settings.update`
+
+成功后，未显式指定 profile 的新上传将默认使用该 profile。
+
+---
+
+## Browse a GitHub Repo directory
+
+```http
+GET /api/v1/system/storage/providers/{id}/github-repo/browse
+```
+
+需要权限：`providers.read`
+
+这个接口只对 GitHub Repo 类型的 profile 有意义。
+
+---
+
+## Upsert a GitHub Repo file
+
+```http
+POST /api/v1/system/storage/providers/{id}/github-repo/upsert
+```
+
+需要权限：`providers.update`
+
+用于在 GitHub Repo profile 对应的仓库中浏览、创建或覆盖单个文件。

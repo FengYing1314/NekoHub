@@ -1,0 +1,203 @@
+---
+title: "Workflows"
+description: "Create and manage workflow profiles, then manually trigger workflow execution for existing assets."
+---
+
+All workflow profile management endpoints require authentication and are controlled by `settings.*` permissions.
+
+---
+
+## List workflow profiles
+
+```http
+GET /api/v1/system/workflows
+```
+
+Required permission: `settings.read`
+
+Returns all workflow profiles. The current repository implementation sorts the list by `isAutoRun` first, then by name.
+
+### Response fields
+
+- `id`
+- `name`
+- `description`
+- `isAutoRun`
+- `graphJson`
+- `createdAtUtc`
+- `updatedAtUtc`
+
+---
+
+## Get a workflow profile
+
+```http
+GET /api/v1/system/workflows/{id}
+```
+
+Required permission: `settings.read`
+
+If the workflow does not exist, the API returns `404 Not Found` with error code `workflow_profile_not_found`.
+
+---
+
+## Create a workflow profile
+
+```http
+POST /api/v1/system/workflows
+```
+
+Required permission: `settings.update`
+
+### Request body
+
+```json
+{
+  "name": "image-post-process",
+  "description": "Generate thumbnail and caption after upload.",
+  "isAutoRun": true,
+  "graphJson": "{\"nodes\":[{\"id\":\"node-1\",\"data\":{\"skillId\":\"thumbnail\"}}],\"edges\":[],\"viewport\":{\"x\":0,\"y\":0,\"zoom\":1}}"
+}
+```
+
+### Validation rules
+
+- `name` is required and limited to `100` characters
+- `description` is optional and limited to `1000` characters
+- `graphJson` is required and must be a valid JSON object
+- workflow names must be unique, otherwise the API returns `workflow_profile_name_conflict`
+- if `isAutoRun=true`, the backend automatically clears the auto-run flag from other workflow profiles
+
+---
+
+## Update a workflow profile
+
+```http
+PUT /api/v1/system/workflows/{id}
+```
+
+Required permission: `settings.update`
+
+This is a **full update**, not PATCH semantics.
+
+### Notes
+
+- send the full `name`, `description`, `isAutoRun`, and `graphJson` payload again
+- if `isAutoRun=true`, the backend also clears the auto-run state from other workflow profiles
+
+---
+
+## Delete a workflow profile
+
+```http
+DELETE /api/v1/system/workflows/{id}
+```
+
+Required permission: `settings.update`
+
+Returns `204 No Content` on success.
+
+---
+
+## Mark a workflow as auto-run
+
+```http
+PATCH /api/v1/system/workflows/{id}/autorun
+```
+
+Required permission: `settings.update`
+
+Marks the selected workflow as the auto-run workflow.
+
+Current constraints:
+
+- only one workflow can have `isAutoRun=true` at a time
+- the backend clears the auto-run flag from the others automatically
+
+---
+
+## Run a workflow on an asset
+
+```http
+POST /api/v1/assets/{id}/workflows/{workflowId}/run
+```
+
+Required permission: `assets.update`
+
+This endpoint is not part of workflow profile management, but it is the runtime entrypoint for actual workflow execution.
+
+### Behavior
+
+- the backend loads the asset and workflow profile
+- it parses executable skill nodes from `graphJson`
+- it validates that those skills are supported for the current asset
+- if validation passes, it queues the skill sequence for asynchronous processing
+
+### Response
+
+Successful calls return `202 Accepted`:
+
+```json
+{
+  "data": {
+    "assetId": "01956f8d-88e4-7c6a-a8f1-5f235293db7a",
+    "workflowId": "01957000-0000-7000-0000-000000000001",
+    "skillIds": [
+      "thumbnail",
+      "ai-caption"
+    ]
+  }
+}
+```
+
+### Common errors
+
+- `workflow_profile_not_found`
+- `workflow_profile_has_no_skills`
+- `workflow_profile_contains_unsupported_skills`
+
+## `graphJson` structure
+
+The backend currently requires `graphJson` to be a JSON object. During parsing it:
+
+- prefers `nodes[].data.skillId`
+- falls back to the legacy `nodes[].type` when `data.skillId` is missing
+- uses `data.parameters` as the explicit parameter object when present
+- for legacy graphs, also treats other `data` fields besides `skillId` as parameters
+
+Minimal example:
+
+```json
+{
+  "nodes": [
+    {
+      "id": "node-1",
+      "data": {
+        "skillId": "thumbnail"
+      }
+    },
+    {
+      "id": "node-2",
+      "data": {
+        "skillId": "watermark",
+        "parameters": {
+          "Text": "NekoHub",
+          "Opacity": 0.5,
+          "FontSize": 36,
+          "Position": "BottomRight"
+        }
+      }
+    }
+  ],
+  "edges": [],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  }
+}
+```
+
+<Note>
+  The current execution model still follows saved node order linearly. `edges` and `viewport` are mainly preserved for frontend editor rendering and state restoration.
+</Note>

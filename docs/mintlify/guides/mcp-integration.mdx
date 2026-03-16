@@ -1,0 +1,75 @@
+---
+title: "MCP 集成"
+description: "把 NekoHub 作为 MCP 服务器接入 AI Agent 与自动化工具。"
+---
+
+NekoHub 提供基于 HTTP 的 MCP 端点，供 Claude Desktop、Cursor 或其他支持 MCP 的客户端调用。
+
+<Note>
+  `/mcp` 只接受 API key，不接受 JWT。认证头必须是 `Authorization: Bearer <API_KEY>`。
+</Note>
+
+## MCP 端点
+
+```text
+http://your-api-host:5121/mcp
+```
+
+当前实现还包含：
+
+- `GET /mcp`
+- `POST /mcp`
+- `GET /mcp/sse`
+- `POST /mcp/message?sessionId=...`
+
+## 连接 MCP 客户端
+
+<Tabs>
+  <Tab title="Claude Desktop / 通用 HTTP MCP">
+    ```json
+    {
+      "mcpServers": {
+        "nekohub": {
+          "url": "http://your-api-host:5121/mcp",
+          "headers": {
+            "Authorization": "Bearer your-api-key"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="通用说明">
+    - URL：`http://your-api-host:5121/mcp`
+    - 鉴权头：`Authorization: Bearer your-api-key`
+    - 传输方式：HTTP
+  </Tab>
+</Tabs>
+
+## 可用工具
+
+- `upload_asset`
+- `list_assets`
+- `get_asset`
+- `patch_asset`
+- `delete_asset`
+- `batch_delete_assets`
+- `get_asset_content_url`
+- `get_asset_usage_stats`
+- `list_skills`
+- `run_asset_skill`
+- `list_storage_profiles`
+- `create_storage_profile`
+- `update_storage_profile`
+- `delete_storage_profile`
+
+## 示例用途
+
+- “把这张图上传到 NekoHub 并设为公开”
+- “列出最近 10 张图片”
+- “对某张图运行基础描述技能”
+- “查看当前存储使用情况”
+
+<Tip>
+  如果你只想给 Agent 只读访问，可以单独配置一把 API key，并在部署侧约束它的使用范围。
+</Tip>

@@ -1,0 +1,85 @@
+---
+title: "API 概览"
+description: "NekoHub REST API 的基础地址、响应格式、鉴权方式和接口分组。"
+---
+
+## Base URL
+
+默认情况下，NekoHub API 运行在：
+
+```text
+http://your-host:5121
+```
+
+管理接口统一以 `/api/v1/` 为前缀。
+
+## 响应格式
+
+### 成功响应
+
+成功返回统一使用 `data` 包装：
+
+```json
+{
+  "data": {}
+}
+```
+
+### 错误响应
+
+错误返回统一使用 `error` 包装：
+
+```json
+{
+  "error": {
+    "code": "asset_not_found",
+    "message": "Asset with the given ID does not exist.",
+    "traceId": "00-abc123...",
+    "status": 404
+  }
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `code` | 机器可读错误码 |
+| `message` | 人类可读错误信息 |
+| `traceId` | 便于关联后端日志的请求 ID |
+| `status` | HTTP 状态码 |
+
+## 鉴权方式
+
+管理接口支持两类 Bearer：
+
+| 方式 | Header | 场景 |
+|---|---|---|
+| JWT | `Authorization: Bearer <access_token>` | 浏览器、用户会话 |
+| API key | `Authorization: Bearer <api_key>` | 脚本、自动化、MCP |
+
+公开接口不需要鉴权。详见 [API 鉴权](/api/authentication)。
+
+## API 版本
+
+当前版本是 **v1**。
+
+## 接口分组
+
+| 分组 | Base path | 说明 |
+|---|---|---|
+| [公开资产](/api/public-assets) | `/api/v1/public/assets` | 匿名浏览公开资产 |
+| [资产](/api/assets) | `/api/v1/assets` | 上传、查询、修改、删除资产，运行技能 |
+| [认证](/api/auth) | `/api/v1/auth` | 登录、刷新、登出、当前用户 |
+| [用户](/api/users) | `/api/v1/users` | 用户、状态、密码、权限管理 |
+| [存储 Provider](/api/storage-providers) | `/api/v1/system/storage` | 管理 storage profiles |
+| [AI Provider](/api/ai-providers) | `/api/v1/system/ai/providers` | 管理 AI provider profiles |
+| [MCP](/api/mcp) | `/mcp` | 提供给 Agent 的 MCP 接口 |
+
+## 无需鉴权的接口
+
+- `GET /api/v1/system/ping`
+- `GET /api/v1/system/bootstrap`
+- `GET /api/v1/public/assets`
+- `GET /api/v1/public/assets/{id}`
+- `GET /content/{storageKey}`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`

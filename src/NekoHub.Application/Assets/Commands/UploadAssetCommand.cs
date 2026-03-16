@@ -1,0 +1,13 @@
+namespace NekoHub.Application.Assets.Commands;
+
+public sealed record UploadAssetCommand(
+    Stream Content,
+    string OriginalFileName,
+    string? DeclaredContentType,
+    long DeclaredSize,
+    string? CommitMessage,
+    string? Description,
+    string? AltText,
+    bool IsPublic = true,
+    Guid? StorageProviderProfileId = null,
+    bool RunEnrichment = true);

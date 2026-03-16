@@ -1,0 +1,107 @@
+---
+title: "AI Provider 接口"
+description: "管理 AI provider profile，并测试模型连通性。"
+---
+
+所有 AI provider 接口都需要鉴权，并受 `aiProviders.*` 权限控制。
+
+---
+
+## List AI provider profiles
+
+```http
+GET /api/v1/system/ai/providers
+```
+
+需要权限：`aiProviders.read`
+
+返回所有 profile，响应字段包括：
+
+- `id`
+- `name`
+- `apiBaseUrl`
+- `apiKey`
+- `modelName`
+- `defaultSystemPrompt`
+- `isActive`
+- `createdAtUtc`
+- `updatedAtUtc`
+
+---
+
+## Get active AI provider
+
+```http
+GET /api/v1/system/ai/providers/active
+```
+
+需要权限：`aiProviders.read`
+
+若当前没有激活 profile，则返回 `{ "data": null }`。
+
+---
+
+## Create AI provider profile
+
+```http
+POST /api/v1/system/ai/providers
+```
+
+需要权限：`aiProviders.create`
+
+### Request body
+
+```json
+{
+  "name": "OpenAI GPT-4o",
+  "apiBaseUrl": "https://api.openai.com/v1",
+  "apiKey": "sk-...",
+  "modelName": "gpt-4o",
+  "defaultSystemPrompt": "You are a helpful image analysis assistant.",
+  "isActive": true
+}
+```
+
+---
+
+## Update AI provider profile
+
+```http
+PATCH /api/v1/system/ai/providers/{id}
+```
+
+需要权限：`aiProviders.update`
+
+这是 patch 语义，只更新你提交的字段。
+
+---
+
+## Delete AI provider profile
+
+```http
+DELETE /api/v1/system/ai/providers/{id}
+```
+
+需要权限：`aiProviders.delete`
+
+如果删除的是当前 active profile，依赖 AI 的技能会在重新配置前失效。
+
+---
+
+## Test AI provider configuration
+
+```http
+POST /api/v1/system/ai/providers/test
+```
+
+需要权限：`aiProviders.update`
+
+可以传 `profileId` 测试已有 profile，也可以直接传一组临时参数测试。
+
+响应字段包括：
+
+- `succeeded`
+- `caption`
+- `resolvedModelName`
+- `resolvedApiBaseUrl`
+- `errorMessage`

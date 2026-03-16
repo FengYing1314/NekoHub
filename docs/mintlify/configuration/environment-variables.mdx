@@ -1,0 +1,148 @@
+---
+title: "环境变量"
+description: "NekoHub 部署时可用的环境变量参考。"
+---
+
+NekoHub 通过环境变量完成运行时配置。使用 Docker Compose 时，通常从 `.env.example` 复制出 `.env` 再按需修改。
+
+```bash
+cp .env.example .env
+```
+
+<Warning>
+  不要把 `.env.example` 的占位值直接用于生产环境。尤其要替换 `Auth__Jwt__Secret`、`Auth__BootstrapSuperAdmin__Password` 和所有 API key。
+</Warning>
+
+---
+
+## 数据库
+
+<ParamField path="Persistence__Database__ConnectionString" type="string" required>
+  PostgreSQL 连接串。
+
+  ```env
+  Persistence__Database__ConnectionString=Host=postgres;Port=5432;Database=nekohub;Username=nekohub;Password=yourpassword;Pooling=true
+  ```
+</ParamField>
+
+<ParamField path="Persistence__Database__Provider" type="string" default="postgresql">
+  数据库 provider。当前代码只支持 `postgresql`。
+</ParamField>
+
+---
+
+## 鉴权：JWT
+
+以下变量控制 JWT 的签发与校验。
+
+<ParamField path="Auth__Jwt__Secret" type="string" required>
+  JWT 签名密钥，至少 32 个字符。生产环境应使用强随机值。
+
+  ```env
+  Auth__Jwt__Secret=your-random-secret-at-least-32-chars
+  ```
+</ParamField>
+
+<ParamField path="Auth__Jwt__Issuer" type="string" default="NekoHub">
+  JWT 的 `iss`（issuer）声明。由后端写入并校验。
+</ParamField>
+
+<ParamField path="Auth__Jwt__Audience" type="string" default="NekoHub.Admin">
+  JWT 的 `aud`（audience）声明。由后端写入并校验。
+</ParamField>
+
+<ParamField path="Auth__Jwt__AccessTokenMinutes" type="number" default="15">
+  Access token 有效期（分钟）。
+</ParamField>
+
+<ParamField path="Auth__Jwt__RefreshTokenDays" type="number" default="30">
+  Refresh token 有效期（天）。
+</ParamField>
+
+---
+
+## Bootstrap 超级管理员
+
+<Note>
+  只有当数据库里还没有 `SuperAdmin` 时，NekoHub 才会执行 bootstrap。之后即使你修改了这两个环境变量，也不会覆盖现有超级管理员。
+</Note>
+
+<ParamField path="Auth__BootstrapSuperAdmin__Username" type="string" required>
+  首次部署时要创建的 `SuperAdmin` 用户名。
+
+  ```env
+  Auth__BootstrapSuperAdmin__Username=admin
+  ```
+</ParamField>
+
+<ParamField path="Auth__BootstrapSuperAdmin__Password" type="string" required>
+  首次部署时要创建的 `SuperAdmin` 密码。
+
+  ```env
+  Auth__BootstrapSuperAdmin__Password=change-this-to-a-strong-password
+  ```
+</ParamField>
+
+---
+
+## API key
+
+API key 面向脚本、自动化和 MCP。浏览器后台不使用 API key 登录。
+
+<ParamField path="Auth__ApiKey__Enabled" type="boolean" default="false">
+  是否启用 API key 鉴权。关闭时，`/mcp` 以及所有使用 Bearer API key 的请求都会被拒绝。
+</ParamField>
+
+<ParamField path="Auth__ApiKey__Keys__0" type="string">
+  第一个 API key。启用后至少要配置一个；更多 key 使用 `Keys__1`、`Keys__2` 追加。
+
+  ```env
+  Auth__ApiKey__Keys__0=your-strong-random-api-key
+  ```
+</ParamField>
+
+---
+
+## 存储
+
+<ParamField path="Storage__Provider" type="string" required>
+  运行时默认存储 provider，支持 `local`、`s3`、`github-repo`。
+
+  更多 provider 细节见 [存储选项](/configuration/storage-options)。
+</ParamField>
+
+<ParamField path="Storage__PublicBaseUrl" type="string" required>
+  用于拼接公开内容地址的 URL 前缀，浏览器必须能访问到。
+
+  ```env
+  Storage__PublicBaseUrl=http://localhost:5121/content
+  ```
+</ParamField>
+
+<ParamField path="Storage__Local__RootPath" type="string" default="/app/storage/assets">
+  使用 `local` provider 时的文件系统目录。容器部署时要挂持久化卷。
+</ParamField>
+
+---
+
+## 前端
+
+<ParamField path="FRONTEND_VITE_API_BASE_URL" type="string" required>
+  浏览器访问 NekoHub API 的基础地址。前后端同域反代时可留空。
+
+  ```env
+  FRONTEND_VITE_API_BASE_URL=https://api.nekohub.example.com
+  ```
+</ParamField>
+
+<ParamField path="FRONTEND_VITE_ALLOWED_HOSTS" type="string" default="true">
+  Vite preview 允许的 Host。可以设为 `true` 允许全部，或写成逗号分隔列表。
+</ParamField>
+
+<ParamField path="FRONTEND_VITE_MAX_UPLOAD_SIZE_BYTES" type="number" default="10485760">
+  前端允许上传的最大体积（字节）。默认 10 MB。
+</ParamField>
+
+<ParamField path="FRONTEND_PORT" type="number" default="5173">
+  前端容器监听端口。
+</ParamField>

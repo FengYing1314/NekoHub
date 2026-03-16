@@ -1,0 +1,50 @@
+---
+title: "资产"
+description: "NekoHub 中图片资产的核心字段、状态和派生结果。"
+---
+
+资产是 NekoHub 的核心业务对象。每次上传图片时，系统都会把文件存进选定的存储 provider，并创建一条资产记录来追踪文件元数据、公开性、处理状态和 AI 结果。
+
+<Info>
+  NekoHub 当前不按用户归属隔离资产。只要具备相应权限，已认证用户就可以查看或管理部署中的全部资产。
+</Info>
+
+## 资产字段
+
+| 字段 | 说明 |
+|---|---|
+| `id` | 资产唯一 ID |
+| `originalFileName` | 上传时的原始文件名 |
+| `contentType` | MIME 类型，如 `image/png` |
+| `size` | 文件大小（字节） |
+| `width` / `height` | 图片宽高 |
+| `isPublic` | 是否公开展示 |
+| `description` | 业务描述 |
+| `altText` | 替代文本 |
+| `status` | 处理状态 |
+| `storageProvider` | 实际存储 provider 类型 |
+| `storageProviderProfileId` | 实际使用的存储 profile |
+| `publicUrl` | 公开访问地址（若可用） |
+
+## 资产状态
+
+| 状态 | 含义 |
+|---|---|
+| `ready` | 已完成处理，可访问、可共享、可在公开画廊展示 |
+
+当前系统的常见运行路径是：上传成功后很快进入 `ready`，然后你可以运行技能、查看派生结果或对外公开。
+
+## 公开与私有
+
+- **公开资产**：`isPublic=true`。会进入 `/gallery`，也可通过公开内容地址被匿名访问
+- **私有资产**：`isPublic=false`。不会进入公开画廊，只能通过受保护的 `/api/v1/assets/{id}/content` 在已认证上下文中访问
+
+你可以随时在后台或 API 中切换这个标记，但具体是否支持切换，也受底层存储 provider 能力影响。
+
+## 派生文件
+
+派生文件是技能运行后生成的附加文件，例如缩略图。每个派生文件都带有自己的 `contentType`、尺寸、大小和公开地址。
+
+## 结构化结果
+
+结构化结果是技能运行后附加到资产上的 JSON 数据。例如基础描述技能会生成 caption 等结构化 payload。它们出现在资产详情里的 `structuredResults` 数组中。

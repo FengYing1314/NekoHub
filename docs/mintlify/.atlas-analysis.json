@@ -1,0 +1,122 @@
+{
+  "projectType": "saas",
+  "projectName": "NekoHub",
+  "projectDescription": "NekoHub is a self-hosted image asset management platform with a public gallery, JWT-secured admin console, and MCP/API key access for automation.",
+  "theme": "luma",
+  "primaryColor": "#848c8e",
+  "lightColor": "#11161e",
+  "darkColor": "#cfd0d2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "deployment"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/assets",
+              "concepts/access-model",
+              "concepts/storage-providers",
+              "concepts/ai-providers"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/uploading-assets",
+              "guides/managing-users",
+              "guides/storage-setup",
+              "guides/ai-skills",
+              "guides/mcp-integration"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/storage-options",
+              "configuration/authentication"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/public-assets",
+              "api/assets",
+              "api/auth",
+              "api/users",
+              "api/storage-providers",
+              "api/ai-providers",
+              "api/mcp"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Public gallery for anonymous browsing of published image assets",
+    "JWT-secured admin console for full asset lifecycle management",
+    "Multi-provider storage support: local disk, S3-compatible, and GitHub repos",
+    "AI-powered asset enrichment via configurable AI provider profiles",
+    "MCP (Model Context Protocol) endpoint for AI agent integrations",
+    "Role-based access control with granular permissions per user",
+    "API key compatibility for scripts, automation, and legacy integrations",
+    "Image upload with validation, metadata, alt text, and public/private visibility"
+  ],
+  "publicApiSurface": [
+    "GET /api/v1/public/assets",
+    "GET /api/v1/public/assets/{id}",
+    "GET /content/{storageKey}",
+    "POST /api/v1/auth/login",
+    "POST /api/v1/auth/refresh",
+    "POST /api/v1/auth/logout",
+    "GET /api/v1/auth/me",
+    "POST /api/v1/assets (upload)",
+    "GET /api/v1/assets",
+    "GET /api/v1/assets/{id}",
+    "PATCH /api/v1/assets/{id}",
+    "DELETE /api/v1/assets/{id}",
+    "POST /api/v1/assets/batch-delete",
+    "GET /api/v1/assets/{id}/content",
+    "GET /api/v1/assets/skills",
+    "POST /api/v1/assets/{id}/skills/{skillName}/run",
+    "GET /api/v1/assets/usage-stats",
+    "GET /api/v1/system/storage/providers",
+    "POST /api/v1/system/storage/providers",
+    "PATCH /api/v1/system/storage/providers/{id}",
+    "DELETE /api/v1/system/storage/providers/{id}",
+    "GET /api/v1/system/ai/providers",
+    "POST /api/v1/system/ai/providers",
+    "PATCH /api/v1/system/ai/providers/{id}",
+    "DELETE /api/v1/system/ai/providers/{id}",
+    "GET /api/v1/users",
+    "POST /api/v1/users",
+    "PATCH /api/v1/users/{id}",
+    "POST /api/v1/users/{id}/status",
+    "POST /api/v1/users/{id}/reset-password",
+    "PATCH /api/v1/users/{id}/permissions",
+    "GET /api/v1/system/bootstrap",
+    "/mcp (MCP endpoint, API key only)"
+  ]
+}

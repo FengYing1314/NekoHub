@@ -1,0 +1,50 @@
+---
+title: "API Overview"
+description: "Base URL, response format, auth methods, and endpoint groups."
+---
+
+## Base URL
+
+```text
+http://your-host:5121
+```
+
+Management APIs live under `/api/v1/`.
+
+## Response format
+
+Successful responses use:
+
+```json
+{ "data": {} }
+```
+
+Errors use:
+
+```json
+{
+  "error": {
+    "code": "asset_not_found",
+    "message": "Asset with the given ID does not exist.",
+    "traceId": "00-abc123...",
+    "status": 404
+  }
+}
+```
+
+## Authentication
+
+| Method | Header | Use case |
+|---|---|---|
+| JWT | `Authorization: Bearer <access_token>` | Browser and user sessions |
+| API key | `Authorization: Bearer <api_key>` | Scripts, automation, MCP |
+
+## Public endpoints
+
+- `GET /api/v1/system/ping`
+- `GET /api/v1/system/bootstrap`
+- `GET /api/v1/public/assets`
+- `GET /api/v1/public/assets/{id}`
+- `GET /content/{storageKey}`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`

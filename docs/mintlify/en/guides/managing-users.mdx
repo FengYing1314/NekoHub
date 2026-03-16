@@ -1,0 +1,140 @@
+---
+title: "Manage Users"
+description: "Create, update, and deactivate user accounts in NekoHub as an admin."
+---
+
+NekoHub does not have open registration. All user accounts are created and managed by admins with the appropriate permissions. This page covers how to create users, assign roles and permissions, and manage account status.
+
+<Warning>
+  Users cannot register themselves. All accounts must be created by an admin through the admin console or the API.
+</Warning>
+
+## Prerequisites
+
+You must be logged in as a user with the `users.create` permission (or the `SuperAdmin` or `Admin` role) to manage users. Regular users do not have access to the `/users` page or the users API.
+
+## Create a user via the admin console
+
+<Steps>
+  <Step title="Open the Users page">
+    Navigate to `/users` in the admin console.
+  </Step>
+  <Step title="Click New User">
+    Click the **New User** button.
+  </Step>
+  <Step title="Fill in the details">
+    Provide the following information:
+    - **Username** — the login name for the new user
+    - **Password** — an initial password; the user or an admin can reset it later
+    - **Role** — select a role (see [User roles](#user-roles) below)
+    - **Active** — leave checked to activate the account immediately
+  </Step>
+  <Step title="Save">
+    Click **Create**. The user can now log in at `/login`.
+  </Step>
+</Steps>
+
+## Create a user via the API
+
+Send a POST request to `/api/v1/users`:
+
+```bash
+curl -X POST https://your-api-host/api/v1/users \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "jane",
+    "password": "a-secure-password",
+    "role": "Admin",
+    "isActive": true,
+    "permissions": []
+  }'
+```
+
+A successful request returns `201 Created` with the new user record:
+
+```json
+{
+  "data": {
+    "id": "0195a1b2-0000-7000-0000-000000000001",
+    "username": "jane",
+    "role": "Admin",
+    "isActive": true,
+    "permissions": [],
+    "createdAtUtc": "2026-04-08T10:00:00Z",
+    "updatedAtUtc": "2026-04-08T10:00:00Z",
+    "lastLoginAtUtc": null
+  }
+}
+```
+
+## User roles
+
+NekoHub has a role hierarchy. Higher roles include all capabilities of lower roles.
+
+| Role | Description |
+|---|---|
+| `SuperAdmin` | Full system access. Created automatically from the bootstrap environment variables on first deployment. |
+| `Admin` | Can manage users, storage providers, AI providers, and all assets. |
+| (other roles) | Roles with more limited access, configured by a SuperAdmin. |
+
+<Note>
+  The `SuperAdmin` account is seeded from `Auth__BootstrapSuperAdmin__Username` and `Auth__BootstrapSuperAdmin__Password` during the first deployment. Only one SuperAdmin is created this way.
+</Note>
+
+## Grant or update permissions
+
+In addition to roles, individual permissions can be granted to a user. Use `PATCH /api/v1/users/{id}/permissions`:
+
+```bash
+curl -X PATCH https://your-api-host/api/v1/users/<user-id>/permissions \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "permissions": ["assets.create", "assets.read", "assets.update"]
+  }'
+```
+
+This replaces the user's current permissions with the provided list.
+
+## Disable or enable a user
+
+To deactivate a user without deleting their account, use `POST /api/v1/users/{id}/status`:
+
+<Tabs>
+  <Tab title="Disable">
+    ```bash
+    curl -X POST https://your-api-host/api/v1/users/<user-id>/status \
+      -H "Authorization: Bearer <access_token>" \
+      -H "Content-Type: application/json" \
+      -d '{"isActive": false}'
+    ```
+  </Tab>
+  <Tab title="Enable">
+    ```bash
+    curl -X POST https://your-api-host/api/v1/users/<user-id>/status \
+      -H "Authorization: Bearer <access_token>" \
+      -H "Content-Type: application/json" \
+      -d '{"isActive": true}'
+    ```
+  </Tab>
+</Tabs>
+
+A disabled user cannot log in, but their account and associated data are retained.
+
+## Reset a password
+
+Admins can reset any user's password using `POST /api/v1/users/{id}/reset-password`:
+
+```bash
+curl -X POST https://your-api-host/api/v1/users/<user-id>/reset-password \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"newPassword": "new-secure-password"}'
+```
+
+A successful reset returns `204 No Content`. The user's next login must use the new password.
+
+<Note>
+  NekoHub does not support self-service password reset, email verification, or MFA. Password changes must be performed by an admin through this endpoint or the admin console.
+</Note>

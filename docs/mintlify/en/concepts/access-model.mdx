@@ -1,0 +1,35 @@
+---
+title: "Access Model"
+description: "How public access, JWT sessions, and API keys are separated in NekoHub."
+---
+
+NekoHub has two access tiers: public read access and authenticated management access.
+
+## Public access
+
+The following endpoints are open:
+
+- `GET /api/v1/public/assets`
+- `GET /api/v1/public/assets/{id}`
+- `GET /content/{storageKey}`
+- `GET /api/v1/system/ping`
+- `GET /api/v1/system/bootstrap`
+
+## Authenticated management
+
+Management APIs accept:
+
+- JWT via `Authorization: Bearer <JWT>`
+- API key via `Authorization: Bearer <API_KEY>`
+
+`/mcp` only accepts API keys.
+
+## Roles
+
+Current role values are:
+
+- `superAdmin`
+- `admin`
+- `user`
+
+`superAdmin` is bootstrap-only. `admin` can manage `user`, but not other `admin` or `superAdmin` accounts.

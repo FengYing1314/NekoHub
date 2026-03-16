@@ -1,0 +1,111 @@
+:root {
+  --app-bg-start: #f8fafc;
+  --app-bg-mid: #f4f7fb;
+  --app-bg-end: #eef3f9;
+  --app-surface: rgba(255, 255, 255, 0.92);
+  --app-surface-strong: rgba(255, 255, 255, 0.98);
+  --app-border: rgba(203, 213, 225, 0.82);
+  --app-border-strong: rgba(191, 219, 254, 0.88);
+  --app-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+  --app-shadow-soft: 0 12px 28px rgba(15, 23, 42, 0.06);
+  --app-text: #1f2937;
+  --app-text-strong: #0f172a;
+  --app-text-muted: #64748b;
+  --app-accent: #2563eb;
+  --app-accent-soft: rgba(37, 99, 235, 0.12);
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--app-text);
+  background-color: var(--app-bg-mid);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 22%),
+    linear-gradient(180deg, var(--app-bg-start) 0%, var(--app-bg-mid) 42%, var(--app-bg-end) 100%);
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.section-card,
+.providers-card {
+  border-radius: 18px;
+  border: 1px solid var(--app-border);
+  background: linear-gradient(180deg, var(--app-surface-strong), var(--app-surface));
+  box-shadow: var(--app-shadow-soft);
+  overflow: hidden;
+}
+
+.section-card .n-card-header,
+.providers-card .n-card-header {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.section-card .n-card-header__main,
+.providers-card .n-card-header__main {
+  font-weight: 700;
+  color: var(--app-text-strong);
+}
+
+.table-wrapper,
+.storage-table-wrapper,
+.github-table-wrapper {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table-wrapper::-webkit-scrollbar,
+.storage-table-wrapper::-webkit-scrollbar,
+.github-table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb,
+.storage-table-wrapper::-webkit-scrollbar-thumb,
+.github-table-wrapper::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.55);
+}
+
+.form-hint,
+.metadata-edit-hint,
+.workflow-hint,
+.workflow-canvas-hint {
+  color: var(--app-text-muted);
+}

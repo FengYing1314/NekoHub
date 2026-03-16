@@ -1,0 +1,68 @@
+---
+title: "配置存储"
+description: "在后台或 API 中添加和切换存储 provider profile。"
+---
+
+## 在后台添加存储 Provider
+
+1. 登录后台
+2. 进入 `/providers`
+3. 点击创建新的 storage profile
+4. 选择 provider 类型并填写配置
+5. 保存后按需设为默认
+
+## 通过 API 创建 Storage Profile
+
+```bash
+curl -X POST http://localhost:5121/api/v1/system/storage/providers \
+  -H "Authorization: Bearer <JWT_OR_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-s3",
+    "displayName": "Primary S3",
+    "providerType": "s3-compatible",
+    "isEnabled": true,
+    "isDefault": false,
+    "configuration": {
+      "providerName": "s3",
+      "endpoint": "https://s3.amazonaws.com",
+      "bucket": "my-bucket",
+      "region": "us-east-1",
+      "forcePathStyle": false
+    },
+    "secretConfiguration": {
+      "accessKey": "AKIA...",
+      "secretKey": "SECRET..."
+    }
+  }'
+```
+
+## Provider 配置要点
+
+### Local
+
+- 需要可写目录
+- 适合开发和单机部署
+- 通常通过 `/content/...` 暴露公开内容
+
+### S3-compatible
+
+- 适合生产
+- 支持更直接的公开 URL
+- 常用于对象存储和 CDN 集成
+
+### GitHub Repo
+
+- 实验性
+- 更适合发布型或补充型存储
+- 不建议作为高频主存储
+
+## 设置默认 Provider
+
+创建好 profile 后，可调用：
+
+```http
+POST /api/v1/system/storage/providers/{id}/set-default
+```
+
+之后不显式指定 `storageProviderProfileId` 的上传会默认落到这个 profile 上。

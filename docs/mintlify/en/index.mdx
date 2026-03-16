@@ -1,0 +1,67 @@
+---
+title: "NekoHub Documentation"
+description: "The self-hosted image asset management platform — upload, organize, and serve your images with a public gallery, admin console, and API."
+---
+
+Welcome to NekoHub. Upload and manage image assets, serve them through a public gallery, and automate workflows via the REST API or MCP endpoint.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get NekoHub running and upload your first image in minutes.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all public endpoints with request and response examples.
+  </Card>
+  <Card title="Storage Providers" icon="database" href="/concepts/storage-providers">
+    Connect local storage, S3-compatible buckets, or GitHub repos.
+  </Card>
+  <Card title="MCP Integration" icon="robot" href="/guides/mcp-integration">
+    Use NekoHub as a tool in your AI agent workflows via the MCP endpoint.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/guides/workflows">
+    Build reusable asset-processing pipelines and run them automatically after upload or on demand.
+  </Card>
+</CardGroup>
+
+## How NekoHub works
+
+NekoHub has two front-end surfaces and one shared backend:
+
+- **Public gallery** (`/gallery`) — anyone can browse images you've marked as public, no login required
+- **Admin console** (`/assets`, `/workflows`, `/providers`, `/settings`, etc.) — manage assets, users, storage, AI providers, and workflows after logging in
+- **REST API / MCP** — automate uploads, queries, and processing from scripts or AI agents
+
+<Steps>
+  <Step title="Deploy NekoHub">
+    Start NekoHub with Docker Compose. Set your database connection, JWT secret, and initial admin credentials.
+  </Step>
+  <Step title="Log in to the admin console">
+    Open `http://localhost:5173/login` and sign in with your SuperAdmin credentials.
+  </Step>
+  <Step title="Upload your first image">
+    Go to `/assets` and upload an image. Toggle **Public** to make it appear in the gallery.
+  </Step>
+  <Step title="Share or integrate">
+    Share the public gallery URL, call the REST API from your application, or connect an AI agent via the MCP endpoint.
+  </Step>
+</Steps>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Public Gallery" icon="images" href="/concepts/access-model">
+    Serve publicly visible assets to anonymous visitors without any authentication.
+  </Card>
+  <Card title="Role-Based Access" icon="shield-halved" href="/guides/managing-users">
+    Create users with scoped permissions — control who can upload, delete, or administer.
+  </Card>
+  <Card title="AI Skills" icon="wand-magic-sparkles" href="/guides/ai-skills">
+    Run AI enrichment on assets: auto-generate captions, alt text, and structured metadata.
+  </Card>
+  <Card title="Workflow Editor" icon="diagram-project" href="/guides/workflows">
+    Combine multiple skills on a node canvas and save them as reusable workflow profiles.
+  </Card>
+  <Card title="Multi-Provider Storage" icon="cloud" href="/guides/storage-setup">
+    Store assets on local disk, any S3-compatible service, or directly in a GitHub repository.
+  </Card>
+</CardGroup>

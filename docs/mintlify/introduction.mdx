@@ -1,0 +1,53 @@
+---
+title: "介绍"
+description: "NekoHub 是一个自托管图片资产管理平台，包含公开画廊、JWT 管理后台、REST API 与 MCP 接口。"
+---
+
+## 什么是 NekoHub
+
+NekoHub 是一个面向图片资产的自托管平台。你自己部署、自己掌控数据，并决定哪些内容公开、哪些内容仅限已授权用户访问。它覆盖了图片上传、存储、元数据管理、AI 丰富化和发布的完整流程。
+
+## 两个访问面
+
+NekoHub 暴露两个共享同一后端的数据访问面：
+
+<CardGroup cols={2}>
+  <Card title="公开画廊" icon="images" href="/quickstart">
+    地址是 `/gallery`，无需登录。它只展示 `isPublic=true` 且状态为 `ready` 的资产。同一部署中的所有访客看到的是同一份公开资产集合。
+  </Card>
+  <Card title="管理后台" icon="lock" href="/quickstart">
+    入口是 `/login`，登录后进入 `/assets`、`/providers`、`/users` 等页面。浏览器会持有 access token 与 refresh token，并根据角色和权限控制界面与操作。
+  </Card>
+</CardGroup>
+
+## 关键能力
+
+- **上传与管理图片**：在后台上传图片、编辑描述和替代文本、切换公开状态、查看派生文件与结构化结果
+- **灵活的存储后端**：支持本地磁盘、S3 兼容对象存储和 GitHub Repo；同一个部署可维护多个存储 profile
+- **AI 丰富化**：为资产生成缩略图、基础描述等结果；按需调用已配置的 AI provider
+- **REST API 与 MCP**：管理操作既可走 REST API，也可通过 `/mcp` 暴露给兼容 MCP 的 Agent
+- **多用户与权限**：支持 `superAdmin`、`admin`、`user` 角色及细粒度权限管理
+
+## 鉴权概览
+
+NekoHub 使用两套鉴权机制：
+
+| 方式 | 用途 |
+|---|---|
+| 用户名密码 + JWT | 浏览器管理后台，以及代表具体用户执行的 API 调用 |
+| API key | 脚本、自动化、CI/CD、MCP 和其他机器到机器集成 |
+
+有几点需要明确：
+
+- `/api/v1/auth/logout` 和 `/api/v1/auth/me` 只接受 JWT，不接受 API key
+- 绝大多数管理接口同时接受 JWT 或 API key
+- `/mcp` 只接受 API key
+- API key 的传递方式是 `Authorization: Bearer <API_KEY>`，不要使用旧的自定义 Header 写法
+
+首次部署时，如果数据库中还没有 `SuperAdmin`，后端会读取环境变量中的 `Auth__BootstrapSuperAdmin__Username` 和 `Auth__BootstrapSuperAdmin__Password` 创建唯一的超级管理员。后续用户都在管理后台或 API 中管理，而不是继续靠环境变量生成。
+
+## 下一步
+
+<Card title="快速开始" icon="rocket" href="/quickstart">
+  按最小配置启动 NekoHub，并验证后台、公开接口和管理台登录链路。
+</Card>

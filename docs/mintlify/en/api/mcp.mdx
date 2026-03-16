@@ -1,0 +1,47 @@
+---
+title: "MCP"
+description: "Use NekoHub as an MCP server for agents and tools."
+---
+
+NekoHub exposes an HTTP MCP endpoint for compatible clients.
+
+## Endpoint
+
+```text
+POST /mcp
+```
+
+Full URL example:
+
+```text
+http://your-host:5121/mcp
+```
+
+The controller currently also implements:
+
+- `GET /mcp`
+- `GET /mcp/sse`
+- `POST /mcp/message?sessionId=...`
+
+## Authentication
+
+MCP only accepts API keys, and they must be sent as Bearer credentials:
+
+```text
+Authorization: Bearer your-api-key
+```
+
+## Client config
+
+```json
+{
+  "mcpServers": {
+    "nekohub": {
+      "url": "http://localhost:5121/mcp",
+      "headers": {
+        "Authorization": "Bearer your-api-key"
+      }
+    }
+  }
+}
+```

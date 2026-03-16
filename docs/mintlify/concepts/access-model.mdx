@@ -1,0 +1,101 @@
+---
+title: "访问模型"
+description: "NekoHub 如何区分公开访问、JWT 会话和 API key 机器调用。"
+---
+
+NekoHub 把访问分成两层：公开读取层，以及已认证的管理层。
+
+## 访问层级
+
+### 匿名 / 公开访问
+
+任何人都可以匿名访问公开画廊和公开资产接口：
+
+| 端点 | 说明 |
+|---|---|
+| `GET /api/v1/public/assets` | 分页列出公开且已就绪的资产 |
+| `GET /api/v1/public/assets/{id}` | 获取单个公开资产详情 |
+| `GET /content/{storageKey}` | 直接读取公开内容 |
+| `GET /api/v1/system/ping` | 健康检查 |
+| `GET /api/v1/system/bootstrap` | 读取运行时配置摘要 |
+
+这些端点只会暴露 `isPublic=true` 且状态为 `ready` 的内容。
+
+### 已认证的管理访问
+
+上传资产、修改元数据、管理用户、配置存储和 AI provider 等操作都属于管理层。
+
+管理层支持两种鉴权方式：
+
+<Tabs>
+  <Tab title="用户名密码 + JWT">
+    用户通过 `POST /api/v1/auth/login` 登录，得到 access token 与 refresh token。
+
+    ```http
+    POST /api/v1/auth/login
+    Content-Type: application/json
+
+    {
+      "username": "admin",
+      "password": "your-password"
+    }
+    ```
+
+    之后把 access token 放在 `Authorization: Bearer <JWT>` 里调用管理接口。
+  </Tab>
+  <Tab title="API key">
+    脚本、自动化和 MCP 使用 API key。传递方式同样是 Bearer：
+
+    ```http
+    GET /api/v1/assets
+    Authorization: Bearer your-api-key
+    ```
+
+    API key 由部署环境配置，不在后台动态创建。
+  </Tab>
+</Tabs>
+
+## 管理接口
+
+以下接口组需要鉴权：
+
+| 接口组 | 说明 |
+|---|---|
+| `/api/v1/assets` | 上传、查询、修改、删除资产，运行技能 |
+| `/api/v1/system/storage` | 管理存储 provider profile |
+| `/api/v1/system/ai/providers` | 管理 AI provider profile |
+| `/api/v1/users` | 创建用户、修改状态、重置密码、调整权限 |
+| `/api/v1/auth/me` | 获取当前登录用户信息 |
+
+其中：
+
+- `/api/v1/auth/logout` 与 `/api/v1/auth/me` 仅接受 JWT
+- 大多数管理接口接受 JWT 或 API key
+- `/mcp` 仅接受 API key
+
+## MCP 端点
+
+`/mcp` 是机器到机器接口，不接受 JWT。当前实现包含：
+
+- `GET /mcp`
+- `POST /mcp`
+- `GET /mcp/sse`
+- `POST /mcp/message`
+
+这些入口都需要 `Authorization: Bearer <API_KEY>`。
+
+## 角色与权限
+
+NekoHub 当前有三个角色：
+
+| 角色 | 说明 |
+|---|---|
+| `superAdmin` | 全局最高权限；不能通过 API 创建，只能在 bootstrap 阶段生成 |
+| `admin` | 拥有一组默认管理权限，但只能管理 `user` |
+| `user` | 默认只拥有较少权限，常见为只读资产能力 |
+
+补充约束：
+
+- `superAdmin` 只能通过 `Auth__BootstrapSuperAdmin__*` 首次引导创建
+- `admin` 不能创建或提升其他 `admin` / `superAdmin`
+- `superAdmin` 不能被其他用户降级或禁用

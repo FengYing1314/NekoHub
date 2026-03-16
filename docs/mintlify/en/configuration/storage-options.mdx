@@ -1,0 +1,139 @@
+---
+title: "Storage Options"
+description: "Configure where NekoHub stores and serves uploaded image assets."
+---
+
+NekoHub supports three storage backends. Set `Storage__Provider` to the appropriate value and supply the matching variables for that provider.
+
+<Tabs>
+  <Tab title="Local">
+
+## Local storage
+
+Local storage writes files directly to the server's filesystem. It is the simplest option and the default in the provided `compose.yaml`.
+
+**Good for:** development, single-machine deployments, or any setup where you manage backups yourself.
+
+### Required variables
+
+```env
+Storage__Provider=local
+Storage__Local__RootPath=/app/storage/assets
+Storage__PublicBaseUrl=http://localhost:5121/content
+```
+
+### Variable reference
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `Storage__Provider` | Yes | — | Must be `local`. |
+| `Storage__Local__RootPath` | No | `/app/storage/assets` | Absolute path on the server where assets are written. Mount a persistent Docker volume at this path. |
+| `Storage__PublicBaseUrl` | Yes | — | Public URL prefix for serving assets. The backend exposes stored files under `/content`, so this should end in `/content`. |
+
+### Docker volume tip
+
+<Tip>
+  Map a named volume to `Storage__Local__RootPath` in your `compose.yaml` so assets survive container restarts and upgrades:
+
+  ```yaml
+  volumes:
+    - nekohub_assets:/app/storage/assets
+  ```
+</Tip>
+
+  </Tab>
+  <Tab title="S3-compatible">
+
+## S3-compatible storage
+
+Use any S3-compatible object store — AWS S3, MinIO, Backblaze B2, Cloudflare R2, etc. This is the recommended backend for production deployments.
+
+**Good for:** production environments, scalable or multi-instance deployments, and any setup where you want durable managed object storage.
+
+### Variable reference
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `Storage__Provider` | Yes | — | Must be `s3`. |
+| `Storage__S3__Endpoint` | Yes | — | Full URL of the S3 endpoint (e.g., `https://s3.amazonaws.com` or `http://minio:9000`). |
+| `Storage__S3__Bucket` | Yes | — | Name of the bucket to store assets in. |
+| `Storage__S3__Region` | Yes | — | AWS region, or `us-east-1` for MinIO and other non-AWS providers. |
+| `Storage__S3__AccessKey` | Yes | — | S3 access key ID. |
+| `Storage__S3__SecretKey` | Yes | — | S3 secret access key. |
+| `Storage__S3__ForcePathStyle` | No | `false` | Set to `true` for MinIO and other providers that require path-style URLs. |
+| `Storage__S3__PublicBaseUrl` | No | — | Direct public URL for assets in the bucket. Use when your bucket is publicly accessible at a fixed URL (e.g., a CDN or public bucket endpoint). If set, this is used to build asset URLs instead of `Storage__PublicBaseUrl`. |
+| `Storage__PublicBaseUrl` | Yes | — | Public URL prefix for serving assets. Required regardless of `Storage__S3__PublicBaseUrl`. |
+
+### MinIO example
+
+The following configuration works with the MinIO service included in the default `compose.yaml`:
+
+```env
+Storage__Provider=s3
+Storage__S3__Endpoint=http://minio:9000
+Storage__S3__Bucket=nekohub
+Storage__S3__Region=us-east-1
+Storage__S3__AccessKey=minioadmin
+Storage__S3__SecretKey=minioadmin
+Storage__S3__ForcePathStyle=true
+Storage__S3__PublicBaseUrl=http://localhost:9000/nekohub
+Storage__PublicBaseUrl=http://localhost:9000/nekohub
+```
+
+### AWS S3 example
+
+```env
+Storage__Provider=s3
+Storage__S3__Endpoint=https://s3.amazonaws.com
+Storage__S3__Bucket=my-nekohub-assets
+Storage__S3__Region=us-east-1
+Storage__S3__AccessKey=AKIAIOSFODNN7EXAMPLE
+Storage__S3__SecretKey=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+Storage__S3__ForcePathStyle=false
+Storage__S3__PublicBaseUrl=https://my-nekohub-assets.s3.amazonaws.com
+Storage__PublicBaseUrl=https://my-nekohub-assets.s3.amazonaws.com
+```
+
+  </Tab>
+  <Tab title="GitHub Repo">
+
+## GitHub Repo storage
+
+<Warning>
+  GitHub Repo storage is **experimental**. It is suitable as a secondary or supplementary store (for example, publishing assets to a public GitHub repository for CDN delivery), but is **not recommended as your primary storage backend** in production. Rate limits, API latency, and repository size constraints make it unsuitable for high-volume or latency-sensitive workloads.
+</Warning>
+
+The GitHub Repo provider commits uploaded files to a GitHub repository using the GitHub Contents API.
+
+**Good for:** low-volume publishing workflows, hosting assets on GitHub Pages, or archiving assets alongside source code.
+
+### Variable reference
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `Storage__Provider` | Yes | — | Must be `github-repo`. |
+| `Storage__GitHubRepo__Owner` | Yes | — | GitHub user or organization that owns the repository. |
+| `Storage__GitHubRepo__Repo` | Yes | — | Repository name. |
+| `Storage__GitHubRepo__Ref` | Yes | — | Branch or ref to commit files to (e.g., `main`). |
+| `Storage__GitHubRepo__BasePath` | No | — | Directory path within the repository where assets are stored (e.g., `assets/images`). |
+| `Storage__GitHubRepo__Token` | Yes | — | GitHub personal access token with `repo` scope (or `public_repo` for public repositories). |
+| `Storage__GitHubRepo__VisibilityPolicy` | No | — | Controls which assets are served publicly. Use `public-only` to only expose assets from public repositories. |
+| `Storage__GitHubRepo__CommitMessageTemplate` | No | `chore(nekohub): {operation} {path}` | Template for commit messages. `{operation}` and `{path}` are replaced at runtime. |
+| `Storage__PublicBaseUrl` | Yes | — | Public URL prefix for asset delivery. For example, a raw.githubusercontent.com URL or a GitHub Pages URL. |
+
+### Example configuration
+
+```env
+Storage__Provider=github-repo
+Storage__GitHubRepo__Owner=your-org
+Storage__GitHubRepo__Repo=nekohub-assets
+Storage__GitHubRepo__Ref=main
+Storage__GitHubRepo__BasePath=assets/images
+Storage__GitHubRepo__Token=ghp_xxxxxxxxxxxxxxxxxxxx
+Storage__GitHubRepo__VisibilityPolicy=public-only
+Storage__GitHubRepo__CommitMessageTemplate=chore(nekohub): {operation} {path}
+Storage__PublicBaseUrl=https://raw.githubusercontent.com/your-org/nekohub-assets/main/assets/images
+```
+
+  </Tab>
+</Tabs>

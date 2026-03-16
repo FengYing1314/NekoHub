@@ -1,0 +1,124 @@
+---
+title: "鉴权配置"
+description: "如何在 NekoHub 中使用 JWT 登录或 API key 进行接口访问。"
+---
+
+NekoHub 支持两种鉴权方式：
+
+- **JWT 登录**：供浏览器管理后台和代表具体用户执行的 API 调用使用
+- **API key**：供脚本、自动化、CI/CD 和 MCP 使用
+
+---
+
+## JWT 登录
+
+管理后台通过用户名密码登录。后端返回短期有效的 access token 和长期有效的 refresh token。
+
+### 登录
+
+```bash
+curl -X POST http://localhost:5121/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "your-password"}'
+```
+
+真实响应带有 `data` 包装：
+
+```json
+{
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+    "refreshToken": "dGhpcyBpcyBhIHJlZnJlc2g...",
+    "accessTokenExpiresAtUtc": "2026-04-08T12:15:00Z",
+    "refreshTokenExpiresAtUtc": "2026-05-08T12:00:00Z",
+    "user": {
+      "id": "01956f8d-0000-0000-0000-000000000001",
+      "username": "admin",
+      "role": "superAdmin",
+      "isActive": true,
+      "permissions": []
+    }
+  }
+}
+```
+
+### 使用 access token
+
+后续请求通过 `Authorization` 头发送：
+
+```bash
+curl http://localhost:5121/api/v1/assets \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+### 刷新 access token
+
+默认情况下 access token 有效期为 15 分钟。刷新时无需重新输入用户名密码：
+
+```bash
+curl -X POST http://localhost:5121/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "dGhpcyBpcyBhIHJlZnJlc2g..."}'
+```
+
+刷新接口同样返回新的 `data.accessToken`、`data.refreshToken`、过期时间和用户信息。
+
+### Token 有效期
+
+| Token | 默认时长 | 环境变量 |
+|---|---|---|
+| Access token | 15 分钟 | `Auth__Jwt__AccessTokenMinutes` |
+| Refresh token | 30 天 | `Auth__Jwt__RefreshTokenDays` |
+
+这些值由后端签发和校验；前端只负责持有 token 并在必要时调用刷新接口。
+
+---
+
+## API key
+
+API key 主要面向非交互式客户端：脚本、CI/CD、自动化流水线和 `/mcp` 端点。
+
+<Note>
+  API key 通过环境变量配置，不在后台里生成。新增或轮换 key 需要修改部署环境并重启服务。
+</Note>
+
+<Warning>
+  API key 是长期凭据，请把它当作密钥处理，不要提交到仓库，也不要直接写进公开客户端。
+</Warning>
+
+### 启用 API key
+
+```env
+Auth__ApiKey__Enabled=true
+Auth__ApiKey__Keys__0=your-strong-random-api-key
+```
+
+如需多个 key，可继续追加 `Auth__ApiKey__Keys__1`、`Auth__ApiKey__Keys__2`。
+
+### 使用 API key
+
+NekoHub 的 API key 使用 `Authorization: Bearer <API_KEY>`，不要使用旧的自定义 Header 写法：
+
+```bash
+curl http://localhost:5121/api/v1/assets \
+  -H "Authorization: Bearer your-strong-random-api-key"
+```
+
+`/mcp` 端点同样如此：
+
+```bash
+curl http://localhost:5121/mcp \
+  -H "Authorization: Bearer your-strong-random-api-key"
+```
+
+---
+
+## 如何选择
+
+| 场景 | 推荐方式 |
+|---|---|
+| 浏览器管理后台 | JWT 登录 |
+| 代表具体用户的 API 调用 | JWT 登录 |
+| 脚本和自动化 | API key |
+| MCP 集成 | API key（必需） |
+| CI/CD | API key |

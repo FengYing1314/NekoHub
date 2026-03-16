@@ -1,0 +1,73 @@
+---
+title: "存储 Provider"
+description: "NekoHub 如何选择和管理图片文件的物理存储位置。"
+---
+
+存储 provider 决定了 NekoHub 把图片文件写到哪里、如何读取，以及是否支持公开直链、私有访问、可见性切换和删除。
+
+## Provider 类型
+
+<CardGroup cols={3}>
+  <Card title="Local" icon="hard-drive">
+    文件保存在服务器本地磁盘。配置最简单，适合开发和单机部署。
+  </Card>
+  <Card title="S3-compatible" icon="cloud">
+    文件保存在兼容 S3 的对象存储中，通常是生产环境的首选。
+  </Card>
+  <Card title="GitHub Repo" icon="github">
+    文件提交到 GitHub 仓库。更适合作为发布型或实验型存储。
+  </Card>
+</CardGroup>
+
+### Local
+
+适合单机、小规模或开发环境。优点是简单，缺点是高可用、扩容和跨节点共享比较困难。
+
+### S3-compatible
+
+适合生产。通常具备更好的耐久性、扩展性，也更容易挂 CDN。
+
+### GitHub Repo
+
+实验性模式。它更像“把资源发布到仓库”，而不是传统对象存储。
+
+## 存储 Provider Profile
+
+NekoHub 不是只维护单一 provider 配置，而是允许你管理多个 **storage provider profile**。每个 profile 都有：
+
+- 名称与显示名
+- provider 类型
+- provider 相关配置
+- 是否启用
+- 是否是数据库中的默认写入 profile
+- 一组能力标记
+
+你可以在 `/providers` 页面或 `/api/v1/system/storage/providers` API 里管理它们。
+
+## 默认 Provider Profile
+
+当上传资产时没有显式指定 `storageProviderProfileId`，系统会选择默认写入 profile。
+
+要注意两层含义：
+
+- 环境变量中的 `Storage__Provider` 决定运行时 provider 能力与初始 bootstrap 行为
+- 数据库中的默认 profile 决定实际默认写入目标
+
+如果数据库中已经有默认 profile，那么实际写入目标可能与环境变量不同。
+
+## Provider 能力
+
+不同 provider 暴露的能力不同，常见字段包括：
+
+| 能力 | 说明 |
+|---|---|
+| `supportsPublicRead` | 是否支持公开读取 |
+| `supportsPrivateRead` | 是否支持私有读取 |
+| `supportsVisibilityToggle` | 是否支持上传后切换公开性 |
+| `supportsDelete` | 是否支持删除文件 |
+| `supportsDirectPublicUrl` | 是否支持直接公开地址 |
+| `requiresAccessProxy` | 私有读取是否必须经过 NekoHub 代理 |
+| `recommendedForPrimaryStorage` | 是否适合作为主存储 |
+| `isExperimental` | 是否属于实验性 provider |
+
+上线前要确认你所选 provider 的能力是否满足业务需求，尤其是私有访问、删除和公开性切换。

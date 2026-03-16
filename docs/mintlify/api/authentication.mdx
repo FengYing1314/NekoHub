@@ -1,0 +1,80 @@
+---
+title: "API 鉴权"
+description: "NekoHub API 中 JWT 和 API key 的使用方式。"
+---
+
+NekoHub 提供两种鉴权方式，分别适用于不同的集成场景。
+
+## JWT Bearer
+
+当请求代表某个登录用户执行时，应使用 JWT。
+
+先调用 [POST /api/v1/auth/login](/api/auth#login) 获取 token，然后在请求头中发送：
+
+```bash
+Authorization: Bearer <access_token>
+```
+
+示例：
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
+  http://localhost:5121/api/v1/assets
+```
+
+JWT 只被以下端点接受：
+
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
+
+## API key
+
+脚本、自动化和 MCP 使用 API key。它的传递方式同样是 Bearer，不要使用旧的自定义 Header 写法：
+
+```bash
+Authorization: Bearer <api_key>
+```
+
+示例：
+
+```bash
+curl -H "Authorization: Bearer your-api-key" \
+  http://localhost:5121/api/v1/assets
+```
+
+启用方式：
+
+```env
+Auth__ApiKey__Enabled=true
+Auth__ApiKey__Keys__0=your-strong-random-key
+```
+
+`/mcp` 只接受 API key。
+
+## 哪些接口接受哪种方式
+
+| 接口组 | JWT | API key |
+|---|---|---|
+| 公开资产 | 不需要 | 不需要 |
+| `/content/{storageKey}` | 不需要 | 不需要 |
+| `GET /api/v1/system/ping` | 不需要 | 不需要 |
+| `GET /api/v1/system/bootstrap` | 不需要 | 不需要 |
+| `POST /api/v1/auth/login` | 不需要 | 不需要 |
+| `POST /api/v1/auth/refresh` | 不需要 | 不需要 |
+| `POST /api/v1/auth/logout` | 需要 | 不接受 |
+| `GET /api/v1/auth/me` | 需要 | 不接受 |
+| `/api/v1/assets` | 接受 | 接受 |
+| `/api/v1/users` | 接受 | 接受 |
+| `/api/v1/system/storage` | 接受 | 接受 |
+| `/api/v1/system/ai/providers` | 接受 | 接受 |
+| `/mcp` | 不接受 | 必需 |
+
+## 常见鉴权错误
+
+| HTTP 状态 | 错误码 | 含义 |
+|---|---|---|
+| `401 Unauthorized` | `auth_unauthorized` | 未登录或 JWT 无效 |
+| `401 Unauthorized` | `api_key_missing` | API key 缺失 |
+| `401 Unauthorized` | `api_key_invalid` | API key 无效或 Header 形式错误 |
+| `401 Unauthorized` | `auth_token_expired` | JWT 过期 |
+| `403 Forbidden` | `auth_forbidden` | 已认证但无权限 |

@@ -1,0 +1,97 @@
+---
+title: "Authentication"
+description: "How to authenticate with NekoHub using JWT login or API keys."
+---
+
+NekoHub supports two authentication methods:
+
+- **JWT login** for the browser admin console and user-backed API calls
+- **API key** for scripts, automation, CI/CD, and MCP
+
+---
+
+## JWT login
+
+The browser admin console signs in with a username and password. The API returns an access token plus a refresh token.
+
+### Log in
+
+```bash
+curl -X POST http://localhost:5121/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "your-password"}'
+```
+
+Real responses are wrapped in `data`:
+
+```json
+{
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+    "refreshToken": "refresh-token-value",
+    "accessTokenExpiresAtUtc": "2026-04-08T12:15:00Z",
+    "refreshTokenExpiresAtUtc": "2026-05-08T12:00:00Z",
+    "user": {
+      "id": "01956f8d-0000-0000-0000-000000000001",
+      "username": "admin",
+      "role": "superAdmin",
+      "isActive": true,
+      "permissions": []
+    }
+  }
+}
+```
+
+### Use the access token
+
+```bash
+curl http://localhost:5121/api/v1/assets \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+### Refresh the access token
+
+```bash
+curl -X POST http://localhost:5121/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "refresh-token-value"}'
+```
+
+### Token lifetime
+
+| Token | Default lifetime | Controlled by |
+|---|---|---|
+| Access token | 15 minutes | `Auth__Jwt__AccessTokenMinutes` |
+| Refresh token | 30 days | `Auth__Jwt__RefreshTokenDays` |
+
+The backend signs and validates these tokens. The frontend only stores them and refreshes them when needed.
+
+---
+
+## API key
+
+API keys are for non-interactive clients. They are configured through environment variables and sent as Bearer credentials:
+
+```bash
+curl http://localhost:5121/api/v1/assets \
+  -H "Authorization: Bearer your-strong-random-api-key"
+```
+
+For MCP:
+
+```bash
+curl http://localhost:5121/mcp \
+  -H "Authorization: Bearer your-strong-random-api-key"
+```
+
+---
+
+## Which method should you use?
+
+| Use case | Recommended method |
+|---|---|
+| Admin console (browser) | JWT login |
+| User-backed API calls | JWT login |
+| Scripts and automation | API key |
+| MCP integrations | API key |
+| CI/CD pipelines | API key |

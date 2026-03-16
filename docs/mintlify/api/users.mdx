@@ -1,0 +1,140 @@
+---
+title: "用户接口"
+description: "创建和管理用户、角色、状态与权限。"
+---
+
+所有用户管理接口都需要鉴权，并且需要相应的用户权限。
+
+---
+
+## List users
+
+```http
+GET /api/v1/users
+```
+
+需要权限：`users.read`
+
+返回当前 actor 可见的用户列表。`superAdmin` 和 API key 可见全部；`admin` 只能看到 `user`。
+
+---
+
+## Get user
+
+```http
+GET /api/v1/users/{id}
+```
+
+需要权限：`users.read`
+
+---
+
+## Create user
+
+```http
+POST /api/v1/users
+```
+
+需要权限：`users.create`
+
+### Request body
+
+<ParamField body="username" type="string" required>
+  用户名。
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  初始密码。
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  角色。当前有效值是 `admin` 或 `user`；`superAdmin` 不能通过该接口创建。
+</ParamField>
+
+<ParamField body="isActive" type="boolean">
+  是否启用，默认 `true`。
+</ParamField>
+
+<ParamField body="permissions" type="array of strings">
+  可选的显式权限列表，例如 `assets.read`、`users.managePermissions`。
+</ParamField>
+
+### 约束
+
+- `superAdmin` 只能 bootstrap 创建
+- `admin` 只能创建 `user`
+- API key 作为机器管理员可绕过角色层级限制
+
+---
+
+## Update user
+
+```http
+PATCH /api/v1/users/{id}
+```
+
+需要权限：`users.update`
+
+可更新用户名、角色和启用状态，但仍受角色层级限制。
+
+---
+
+## Set user status
+
+```http
+POST /api/v1/users/{id}/status
+```
+
+需要权限：`users.disable`
+
+### Request body
+
+```json
+{
+  "isActive": false
+}
+```
+
+### 约束
+
+- `superAdmin` 不能被禁用
+- 非 API key 登录用户不能禁用自己
+
+---
+
+## Reset user password
+
+```http
+POST /api/v1/users/{id}/reset-password
+```
+
+需要权限：`users.update`
+
+成功返回 `204 No Content`。
+
+---
+
+## Update user permissions
+
+```http
+PATCH /api/v1/users/{id}/permissions
+```
+
+需要权限：`users.managePermissions`
+
+### Request body
+
+```json
+{
+  "permissions": [
+    "assets.read",
+    "assets.create"
+  ]
+}
+```
+
+该接口会用你提交的数组完全替换原有显式权限列表。
+
+<Warning>
+  `superAdmin` 的权限是固定的，不能通过这个接口修改。
+</Warning>
