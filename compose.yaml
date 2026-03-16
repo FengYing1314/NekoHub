@@ -1,0 +1,65 @@
+﻿services:
+  nekohub:
+    image: nekohub
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5121:8080"
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      Storage__Provider: "local"
+      Storage__Local__RootPath: "/app/storage/assets"
+      Storage__PublicBaseUrl: "http://localhost:5121/content"
+      Persistence__Database__ConnectionString: "Data Source=/app/storage/nekohub.db"
+    volumes:
+      - ./data:/app/storage
+
+  nekohub-s3:
+    image: nekohub
+    profiles: ["s3"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - minio
+      - minio-init
+    ports:
+      - "5122:8080"
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      Storage__Provider: "s3"
+      Storage__S3__ProviderName: "s3"
+      Storage__S3__Endpoint: "http://minio:9000"
+      Storage__S3__Bucket: "nekohub"
+      Storage__S3__Region: "us-east-1"
+      Storage__S3__AccessKey: "minioadmin"
+      Storage__S3__SecretKey: "minioadmin"
+      Storage__S3__ForcePathStyle: "true"
+      Storage__S3__PublicBaseUrl: "http://localhost:9000/nekohub"
+      Persistence__Database__ConnectionString: "Data Source=/app/storage/nekohub.db"
+    volumes:
+      - ./data:/app/storage
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-03T21-03-04Z
+    profiles: ["s3"]
+    command: server /data --address :9000 --console-address :9001
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-02-15T10-36-16Z
+    profiles: ["s3"]
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin &&
+      /usr/bin/mc mb -p local/nekohub || true &&
+      /usr/bin/mc anonymous set download local/nekohub || true
+      "

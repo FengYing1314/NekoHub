@@ -1,0 +1,13 @@
+.git
+.gitignore
+.idea
+.vs
+**/bin
+**/obj
+tests
+data
+src/NekoHub.Api/storage/*.db
+src/NekoHub.Api/storage/*.db-*
+AGENTS.md
+GEMINI.md
+README.local.md

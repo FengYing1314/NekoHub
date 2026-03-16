@@ -1,0 +1,38 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# IDE / Editor
+.idea/
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+riderModule.iml
+_ReSharper.Caches/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Runtime local data
+/data/
+src/NekoHub.Api/storage/*.db
+src/NekoHub.Api/storage/*.db-*
+src/NekoHub.Api/storage/assets/
+
+# Private / internal collaboration docs (not for first public release)
+/AGENTS.md
+/GEMINI.md
+
+# Local test workspace (keep local, exclude from public first release)
+/tests/
+
+# Root scaffold leftovers (active project is under src/)
+/NekoHub.csproj
+/Program.cs
+/NekoHub.http
+/Properties/
+/appsettings.json
+/appsettings.Development.json
