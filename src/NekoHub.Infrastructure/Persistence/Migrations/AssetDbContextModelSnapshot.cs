@@ -204,6 +204,81 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.ToTable("AssetStructuredResults", (string)null);
                 });
 
+            modelBuilder.Entity("NekoHub.Domain.Skills.SkillExecution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CompletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SkillName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SourceAssetId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("StartedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Succeeded")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TriggerSource")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceAssetId");
+
+                    b.HasIndex("StartedAtUtc");
+
+                    b.HasIndex("SourceAssetId", "StartedAtUtc");
+
+                    b.ToTable("SkillExecutions", (string)null);
+                });
+
+            modelBuilder.Entity("NekoHub.Domain.Skills.SkillExecutionStepResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CompletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SkillExecutionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("StartedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StepName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Succeeded")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SkillExecutionId");
+
+                    b.HasIndex("StartedAtUtc");
+
+                    b.HasIndex("SkillExecutionId", "StepName");
+
+                    b.ToTable("SkillExecutionStepResults", (string)null);
+                });
+
             modelBuilder.Entity("NekoHub.Domain.Assets.AssetDerivative", b =>
                 {
                     b.HasOne("NekoHub.Domain.Assets.Asset", null)
@@ -218,6 +293,24 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.HasOne("NekoHub.Domain.Assets.Asset", null)
                         .WithMany()
                         .HasForeignKey("SourceAssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("NekoHub.Domain.Skills.SkillExecution", b =>
+                {
+                    b.HasOne("NekoHub.Domain.Assets.Asset", null)
+                        .WithMany()
+                        .HasForeignKey("SourceAssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("NekoHub.Domain.Skills.SkillExecutionStepResult", b =>
+                {
+                    b.HasOne("NekoHub.Domain.Skills.SkillExecution", null)
+                        .WithMany()
+                        .HasForeignKey("SkillExecutionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

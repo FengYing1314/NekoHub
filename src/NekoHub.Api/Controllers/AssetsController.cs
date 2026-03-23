@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using NekoHub.Api.Auth;
 using NekoHub.Api.Configuration;
 using NekoHub.Api.Contracts.Requests;
 using NekoHub.Api.Contracts.Responses;
@@ -14,6 +16,7 @@ namespace NekoHub.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/assets")]
+[Authorize(Policy = ApiKeyAuthorization.PolicyName)]
 public sealed class AssetsController(
     IAssetCommandService assetCommandService,
     IAssetQueryService assetQueryService,
@@ -198,7 +201,8 @@ public sealed class AssetsController(
             CreatedAtUtc: dto.CreatedAtUtc,
             UpdatedAtUtc: dto.UpdatedAtUtc,
             Derivatives: [],
-            StructuredResults: []);
+            StructuredResults: [],
+            LatestExecutionSummary: null);
     }
 
     private static AssetResponse ToResponse(AssetDetailsQueryDto dto)
@@ -238,7 +242,24 @@ public sealed class AssetsController(
                     Kind: result.Kind,
                     PayloadJson: result.PayloadJson,
                     CreatedAtUtc: result.CreatedAtUtc))
-                .ToList());
+                .ToList(),
+            LatestExecutionSummary: dto.LatestExecutionSummary is null
+                ? null
+                : new AssetLatestExecutionSummaryResponse(
+                    ExecutionId: dto.LatestExecutionSummary.ExecutionId,
+                    SkillName: dto.LatestExecutionSummary.SkillName,
+                    TriggerSource: dto.LatestExecutionSummary.TriggerSource,
+                    StartedAtUtc: dto.LatestExecutionSummary.StartedAtUtc,
+                    CompletedAtUtc: dto.LatestExecutionSummary.CompletedAtUtc,
+                    Succeeded: dto.LatestExecutionSummary.Succeeded,
+                    Steps: dto.LatestExecutionSummary.Steps
+                        .Select(step => new AssetLatestExecutionStepSummaryResponse(
+                            StepName: step.StepName,
+                            Succeeded: step.Succeeded,
+                            ErrorMessage: step.ErrorMessage,
+                            StartedAtUtc: step.StartedAtUtc,
+                            CompletedAtUtc: step.CompletedAtUtc))
+                        .ToList()));
     }
 
     private static AssetPagedResponse ToPagedResponse(AssetPagedQueryDto dto)

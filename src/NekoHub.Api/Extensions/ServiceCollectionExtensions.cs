@@ -1,7 +1,13 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NekoHub.Api.Auth;
+using NekoHub.Api.Mcp;
+using NekoHub.Api.Mcp.Prompts;
+using NekoHub.Api.Mcp.Resources;
+using NekoHub.Api.Mcp.Tools;
 using NekoHub.Api.Contracts.Responses;
 using NekoHub.Api.Configuration;
 
@@ -12,6 +18,48 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApiLayer(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AssetApiOptions>(configuration.GetSection(AssetApiOptions.SectionName));
+        services
+            .AddOptions<ApiKeyAuthOptions>()
+            .Bind(configuration.GetSection(ApiKeyAuthOptions.SectionName))
+            .Validate(
+                static options => !options.Enabled || options.Keys.Any(static key => !string.IsNullOrWhiteSpace(key)),
+                "Auth:ApiKey:Keys must contain at least one key when API key auth is enabled.")
+            .ValidateOnStart();
+
+        services
+            .AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = ApiKeyAuthenticationDefaults.SchemeName;
+                options.DefaultChallengeScheme = ApiKeyAuthenticationDefaults.SchemeName;
+            })
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+                ApiKeyAuthenticationDefaults.SchemeName,
+                _ => { });
+
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy(ApiKeyAuthorization.PolicyName, policy =>
+            {
+                policy.AddAuthenticationSchemes(ApiKeyAuthenticationDefaults.SchemeName);
+                policy.RequireAuthenticatedUser();
+            });
+        });
+        services.AddScoped<McpServer>();
+        services.AddScoped<McpPromptRegistry>();
+        services.AddScoped<IMcpPrompt, InspectAssetMcpPrompt>();
+        services.AddScoped<IMcpPrompt, EnrichAssetMcpPrompt>();
+        services.AddScoped<IMcpPrompt, ReviewAssetOutputsMcpPrompt>();
+        services.AddScoped<McpResourceRegistry>();
+        services.AddScoped<IMcpResource, AssetMcpResource>();
+        services.AddScoped<IMcpResource, SkillMcpResource>();
+        services.AddScoped<McpToolRegistry>();
+        services.AddScoped<IMcpTool, GetAssetMcpTool>();
+        services.AddScoped<IMcpTool, ListAssetsMcpTool>();
+        services.AddScoped<IMcpTool, ListSkillsMcpTool>();
+        services.AddScoped<IMcpTool, GetAssetContentUrlMcpTool>();
+        services.AddScoped<IMcpTool, UploadAssetMcpTool>();
+        services.AddScoped<IMcpTool, RunAssetSkillMcpTool>();
+        services.AddScoped<IMcpTool, DeleteAssetMcpTool>();
 
         services
             .AddControllers()

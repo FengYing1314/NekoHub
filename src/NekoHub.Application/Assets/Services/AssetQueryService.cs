@@ -3,13 +3,15 @@ using NekoHub.Application.Assets.Queries;
 using NekoHub.Application.Assets.Queries.Dtos;
 using NekoHub.Application.Common.Exceptions;
 using NekoHub.Domain.Assets;
+using NekoHub.Domain.Skills;
 
 namespace NekoHub.Application.Assets.Services;
 
 public sealed class AssetQueryService(
     IAssetRepository assetRepository,
     IAssetDerivativeRepository assetDerivativeRepository,
-    IAssetStructuredResultRepository assetStructuredResultRepository) : IAssetQueryService
+    IAssetStructuredResultRepository assetStructuredResultRepository,
+    IAssetSkillExecutionRepository assetSkillExecutionRepository) : IAssetQueryService
 {
     public async Task<AssetDetailsQueryDto> GetByIdAsync(Guid assetId, CancellationToken cancellationToken = default)
     {
@@ -21,7 +23,12 @@ public sealed class AssetQueryService(
 
         var derivatives = await assetDerivativeRepository.GetBySourceAssetIdAsync(asset.Id, cancellationToken);
         var structuredResults = await assetStructuredResultRepository.GetBySourceAssetIdAsync(asset.Id, cancellationToken);
-        return ToDetailsDto(asset, derivatives, structuredResults);
+        var latestExecution = await assetSkillExecutionRepository.GetLatestBySourceAssetIdAsync(asset.Id, cancellationToken);
+        var latestExecutionSteps = latestExecution is null
+            ? []
+            : await assetSkillExecutionRepository.GetByExecutionIdAsync(latestExecution.Id, cancellationToken);
+
+        return ToDetailsDto(asset, derivatives, structuredResults, latestExecution, latestExecutionSteps);
     }
 
     public async Task<AssetPagedQueryDto> GetPagedAsync(GetAssetsPagedQuery query, CancellationToken cancellationToken = default)
@@ -58,7 +65,9 @@ public sealed class AssetQueryService(
     private static AssetDetailsQueryDto ToDetailsDto(
         Asset asset,
         IReadOnlyList<AssetDerivative> derivatives,
-        IReadOnlyList<AssetStructuredResult> structuredResults)
+        IReadOnlyList<AssetStructuredResult> structuredResults,
+        SkillExecution? latestExecution,
+        IReadOnlyList<SkillExecutionStepResult> latestExecutionSteps)
     {
         return new AssetDetailsQueryDto(
             Id: asset.Id,
@@ -86,7 +95,10 @@ public sealed class AssetQueryService(
             StructuredResults: structuredResults
                 .OrderBy(static result => result.CreatedAtUtc)
                 .Select(ToStructuredResultDto)
-                .ToList());
+                .ToList(),
+            LatestExecutionSummary: latestExecution is null
+                ? null
+                : ToLatestExecutionSummaryDto(latestExecution, latestExecutionSteps));
     }
 
     private static AssetDerivativeSummaryQueryDto ToDerivativeDto(AssetDerivative derivative)
@@ -125,5 +137,27 @@ public sealed class AssetQueryService(
             PublicUrl: asset.PublicUrl,
             CreatedAtUtc: asset.CreatedAtUtc,
             UpdatedAtUtc: asset.UpdatedAtUtc);
+    }
+
+    private static AssetLatestExecutionSummaryQueryDto ToLatestExecutionSummaryDto(
+        SkillExecution execution,
+        IReadOnlyList<SkillExecutionStepResult> stepResults)
+    {
+        return new AssetLatestExecutionSummaryQueryDto(
+            ExecutionId: execution.Id,
+            SkillName: execution.SkillName,
+            TriggerSource: execution.TriggerSource,
+            StartedAtUtc: execution.StartedAtUtc,
+            CompletedAtUtc: execution.CompletedAtUtc,
+            Succeeded: execution.Succeeded,
+            Steps: stepResults
+                .OrderBy(static step => step.StartedAtUtc)
+                .Select(static step => new AssetLatestExecutionStepSummaryQueryDto(
+                    StepName: step.StepName,
+                    Succeeded: step.Succeeded,
+                    ErrorMessage: step.ErrorMessage,
+                    StartedAtUtc: step.StartedAtUtc,
+                    CompletedAtUtc: step.CompletedAtUtc))
+                .ToList());
     }
 }

@@ -6,12 +6,15 @@ using Microsoft.Extensions.Options;
 using NekoHub.Application.Abstractions.Metadata;
 using NekoHub.Application.Abstractions.Persistence;
 using NekoHub.Application.Abstractions.Processing;
+using NekoHub.Application.Abstractions.Skills;
 using NekoHub.Application.Abstractions.Storage;
 using NekoHub.Infrastructure.Metadata;
 using NekoHub.Infrastructure.Options;
 using NekoHub.Infrastructure.Persistence;
 using NekoHub.Infrastructure.Persistence.EfCore;
 using NekoHub.Infrastructure.Processing;
+using NekoHub.Infrastructure.Skills;
+using NekoHub.Infrastructure.Skills.Steps;
 using NekoHub.Infrastructure.Storage;
 using NekoHub.Infrastructure.Storage.Local;
 using NekoHub.Infrastructure.Storage.S3;
@@ -71,12 +74,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAssetStorageResolver, AssetStorageResolver>();
         services.AddSingleton<IAssetMetadataExtractor, BasicAssetMetadataExtractor>();
         services.AddScoped<IAssetProcessingDispatcher, AssetProcessingDispatcher>();
-        services.AddScoped<IAssetPostProcessor, NoOpAssetPostProcessor>();
-        services.AddScoped<IAssetPostProcessor, ThumbnailAssetPostProcessor>();
-        services.AddScoped<IAssetPostProcessor, BasicCaptionStructuredResultPostProcessor>();
+        services.AddSingleton<IAssetSkillDefinitionProvider, DefaultAssetSkillDefinitionProvider>();
+        services.AddScoped<ISkillRunner, SkillRunner>();
+        services.AddScoped<ThumbnailAssetPostProcessor>();
+        services.AddScoped<BasicCaptionStructuredResultPostProcessor>();
+        services.AddScoped<ISkillStepExecutor, GenerateThumbnailSkillStep>();
+        services.AddScoped<ISkillStepExecutor, GenerateBasicCaptionSkillStep>();
         services.AddScoped<IAssetRepository, EfCoreAssetRepository>();
         services.AddScoped<IAssetDerivativeRepository, EfCoreAssetDerivativeRepository>();
         services.AddScoped<IAssetStructuredResultRepository, EfCoreAssetStructuredResultRepository>();
+        services.AddScoped<IAssetSkillExecutionRepository, EfCoreAssetSkillExecutionRepository>();
 
         return services;
     }

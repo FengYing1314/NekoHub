@@ -1,65 +1,90 @@
-﻿services:
+name: nekohub
+
+services:
+  # 最小首发体验：Local Storage + SQLite
   nekohub:
-    image: nekohub
+    image: nekohub:latest
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
     ports:
       - "5121:8080"
     environment:
-      ASPNETCORE_URLS: "http://+:8080"
-      Storage__Provider: "local"
-      Storage__Local__RootPath: "/app/storage/assets"
-      Storage__PublicBaseUrl: "http://localhost:5121/content"
-      Persistence__Database__ConnectionString: "Data Source=/app/storage/nekohub.db"
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      Persistence__Database__Provider: ${Persistence__Database__Provider:-sqlite}
+      Persistence__Database__ConnectionString: ${Persistence__Database__ConnectionString:-Data Source=/app/storage/nekohub.db}
+      Auth__ApiKey__Enabled: ${Auth__ApiKey__Enabled:-true}
+      Auth__ApiKey__Keys__0: ${Auth__ApiKey__Keys__0:-change-this-api-key-in-production}
+      Storage__Provider: local
+      Storage__Local__RootPath: ${Storage__Local__RootPath:-/app/storage/assets}
+      Storage__PublicBaseUrl: ${Storage__PublicBaseUrl:-http://localhost:5121/content}
     volumes:
       - ./data:/app/storage
+    restart: unless-stopped
 
+  # S3-compatible 示例（配合 MinIO）
   nekohub-s3:
-    image: nekohub
+    image: nekohub:latest
     profiles: ["s3"]
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
     depends_on:
       - minio
       - minio-init
     ports:
       - "5122:8080"
     environment:
-      ASPNETCORE_URLS: "http://+:8080"
-      Storage__Provider: "s3"
-      Storage__S3__ProviderName: "s3"
-      Storage__S3__Endpoint: "http://minio:9000"
-      Storage__S3__Bucket: "nekohub"
-      Storage__S3__Region: "us-east-1"
-      Storage__S3__AccessKey: "minioadmin"
-      Storage__S3__SecretKey: "minioadmin"
-      Storage__S3__ForcePathStyle: "true"
-      Storage__S3__PublicBaseUrl: "http://localhost:9000/nekohub"
-      Persistence__Database__ConnectionString: "Data Source=/app/storage/nekohub.db"
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      Persistence__Database__Provider: ${Persistence__Database__Provider:-sqlite}
+      Persistence__Database__ConnectionString: ${Persistence__Database__ConnectionString:-Data Source=/app/storage/nekohub.db}
+      Auth__ApiKey__Enabled: ${Auth__ApiKey__Enabled:-true}
+      Auth__ApiKey__Keys__0: ${Auth__ApiKey__Keys__0:-change-this-api-key-in-production}
+      Storage__Provider: s3
+      Storage__S3__ProviderName: ${Storage__S3__ProviderName:-s3}
+      Storage__S3__Endpoint: ${Storage__S3__Endpoint:-http://minio:9000}
+      Storage__S3__Bucket: ${Storage__S3__Bucket:-nekohub}
+      Storage__S3__Region: ${Storage__S3__Region:-us-east-1}
+      Storage__S3__AccessKey: ${Storage__S3__AccessKey:-minioadmin}
+      Storage__S3__SecretKey: ${Storage__S3__SecretKey:-minioadmin}
+      Storage__S3__ForcePathStyle: ${Storage__S3__ForcePathStyle:-true}
+      Storage__S3__PublicBaseUrl: ${Storage__S3__PublicBaseUrl:-http://localhost:9000/nekohub}
     volumes:
       - ./data:/app/storage
+    restart: unless-stopped
 
   minio:
     image: minio/minio:RELEASE.2025-02-03T21-03-04Z
     profiles: ["s3"]
     command: server /data --address :9000 --console-address :9001
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
       - "9000:9000"
       - "9001:9001"
+    restart: unless-stopped
 
   minio-init:
     image: minio/mc:RELEASE.2025-02-15T10-36-16Z
     profiles: ["s3"]
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-      /usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin &&
-      /usr/bin/mc mb -p local/nekohub || true &&
-      /usr/bin/mc anonymous set download local/nekohub || true
-      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${Storage__S3__Bucket:-nekohub}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until /usr/bin/mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+          echo "waiting for minio to be ready..."
+          sleep 2
+        done
+        /usr/bin/mc mb -p "local/$MINIO_BUCKET" || true
+        /usr/bin/mc anonymous set download "local/$MINIO_BUCKET" || true

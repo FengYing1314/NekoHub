@@ -17,6 +17,7 @@ public static class WebApplicationExtensions
         app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
         app.UseLocalStoragePublicContent(defaultStorage);
         app.UseHttpsRedirection();
+        app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapOpenApi("/openapi/{documentName}.json");

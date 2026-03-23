@@ -22,4 +22,5 @@ public sealed record AssetResponse(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     IReadOnlyList<AssetDerivativeSummaryResponse> Derivatives,
-    IReadOnlyList<AssetStructuredResultSummaryResponse> StructuredResults);
+    IReadOnlyList<AssetStructuredResultSummaryResponse> StructuredResults,
+    AssetLatestExecutionSummaryResponse? LatestExecutionSummary);

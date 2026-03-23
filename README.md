@@ -1,52 +1,74 @@
 # NekoHub
 
-NekoHub 是一个基于 `.NET 10 + ASP.NET Core Web API` 的媒体资产后端服务，首发版本聚焦“图片上传、存储、访问与基础后处理”。
+NekoHub 是一个 **LLM-friendly asset backend alpha**。当前首发版本聚焦图片资产，提供上传、存储、访问、基础处理与 MCP 接入能力。
 
-## 版本定位
+长期来看，NekoHub 将继续演进为支持图片、视频、音频、Excel 等多类型文件的全媒体资产处理平台；但当前 alpha 版本已完成并对外提供的能力，仍以图片资产为准。
 
-- 当前版本：`v0.x` 首发版本（可运行、可部署）。
-- 项目定位：资产平台基础层，不是最终形态。
-- 当前重点：稳定 API、稳定持久化、Local/S3-compatible 双存储模式。
+## 项目定位
 
-## 核心功能
+- 当前阶段：`alpha`
+- 核心场景：图片资产后端 + Agent/LLM 友好接入
+- 设计重点：稳定契约、清晰边界、可演进架构（Clean Architecture）
 
-- 图片上传、详情查询、分页查询、删除。
-- 内容访问统一 `307` 重定向语义。
-- Local 与 S3-compatible 存储支持。
-- 基础元数据：`contentType / extension / size / width / height / checksumSha256`。
-- 后处理骨架：
-  - 文件型结果：缩略图（`thumbnail_256`）。
-  - 结构化结果：基础描述（`basic_caption`）。
-- 详情读模型返回 `derivatives` 与 `structuredResults` 摘要。
+## 当前 alpha 已支持能力
 
-## 技术栈
+- HTTP 资产主链路：上传、详情、分页、删除、内容访问
+- Local 与 S3-compatible 双存储模式
+- SQLite + EF Core Migration 持久化
+- 图片基础元数据：`contentType / extension / size / width / height / checksumSha256`
+- 后处理结果：
+  - 文件型派生结果（`AssetDerivative`，如缩略图）
+  - 结构化结果（`AssetStructuredResult`，如基础 caption）
+- Skill Pipeline（同步顺序执行）
+- Skill 执行记录持久化（`SkillExecution + StepResult`）
+- MCP Alpha 接口面：
+  - Tool Surface
+  - Resource Surface
+  - Prompt Surface
+- API Key 认证边界（覆盖 `/api/v1/assets` 与 `/mcp`）
 
-- .NET 10 / ASP.NET Core Web API
-- Entity Framework Core 10 + SQLite
-- Local 文件存储 + S3-compatible 对象存储（AWS S3 API）
-- SixLabors.ImageSharp（图像处理）
-- Docker / Docker Compose
+## 当前 alpha 边界
 
-## 目录结构
+- 不包含用户系统 / OAuth / RBAC / 多租户
+- 不包含异步队列、分布式任务编排、重试死信体系
+- 当前仅实现图片资产处理；视频、音频、Excel 等多类型文件仍属于后续演进方向
 
-```text
-src/
-  NekoHub.Api            # HTTP 接口与应用入口
-  NekoHub.Application    # 用例、服务、抽象接口
-  NekoHub.Domain         # 领域模型
-  NekoHub.Infrastructure # EF Core、存储实现、处理器实现
-Dockerfile
-compose.yaml
+## 适合接入 Agent 的能力说明
+
+NekoHub 当前可被 Agent 直接消费的能力：
+
+- 可调用工具（MCP Tools）：读写资产、执行 Skill
+- 可读取资源（MCP Resources）：资产详情、派生结果、结构化结果、Skill 描述
+- 可获取提示模板（MCP Prompts）：资产检查、增强执行、产物审查
+- 稳定的 API Key 鉴权边界
+
+这使它适合作为 Agent 的“资产后端基础设施”，而不是完整自动化平台。
+
+## Quick Start（推荐）
+
+### 方式 A：Docker Compose（最短路径）
+
+1. 复制环境变量模板：
+
+```bash
+cp .env.example .env
 ```
 
-## 快速开始
+2. 修改 `.env` 中的 API Key（至少改 `Auth__ApiKey__Keys__0`）。
 
-### 前置要求
+3. 启动 Local 模式：
 
-- .NET 10 SDK
-- Docker（可选）
+```bash
+docker compose up --build nekohub
+```
 
-### 本地源码运行
+4. 健康检查：
+
+```bash
+curl http://localhost:5121/api/v1/system/ping
+```
+
+### 方式 B：本地源码运行
 
 ```bash
 dotnet restore NekoHub.slnx
@@ -54,99 +76,111 @@ dotnet build NekoHub.slnx
 dotnet run --project src/NekoHub.Api/NekoHub.Api.csproj
 ```
 
-默认地址（示例）：`http://localhost:5121`（按启动日志为准）。
+默认地址示例：`http://localhost:5121`（以启动日志为准）。
 
-## 运行模式
+## 最小调用示例
 
-### Local 存储模式（默认）
-
-- 存储：本地文件系统
-- 数据库：SQLite（`storage/nekohub.db`）
-
-示例环境变量：
+### HTTP 示例（上传图片）
 
 ```bash
-export Storage__Provider=local
-export Storage__Local__RootPath=storage/assets
-export Storage__PublicBaseUrl=http://localhost:5121/content
-export Persistence__Database__ConnectionString="Data Source=storage/nekohub.db"
+curl -X POST "http://localhost:5121/api/v1/assets" \
+  -H "Authorization: Bearer replace-with-strong-key" \
+  -F "file=@./cat.png;type=image/png" \
+  -F "description=cat avatar" \
+  -F "altText=orange cat looking at camera"
 ```
 
-### S3-compatible 存储模式
-
-- 存储：S3-compatible（可对接 MinIO / AWS S3 / 兼容实现）
-- 数据库：当前仍为 SQLite
-
-示例环境变量：
+### MCP 示例（列出可用工具）
 
 ```bash
-export Storage__Provider=s3
-export Storage__S3__ProviderName=s3
-export Storage__S3__Endpoint=http://127.0.0.1:9000
-export Storage__S3__Bucket=nekohub
-export Storage__S3__Region=us-east-1
-export Storage__S3__AccessKey=minioadmin
-export Storage__S3__SecretKey=minioadmin
-export Storage__S3__ForcePathStyle=true
-export Storage__S3__PublicBaseUrl=http://127.0.0.1:9000/nekohub
-export Persistence__Database__ConnectionString="Data Source=storage/nekohub.db"
+curl -X POST "http://localhost:5121/mcp" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer replace-with-strong-key" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/list"
+  }'
 ```
 
-## Docker 运行方式
+## API Key 使用说明
 
-```bash
-docker build -t nekohub:latest .
-docker run --rm -p 5121:8080 \
-  -e ASPNETCORE_URLS=http://+:8080 \
-  -e Storage__Provider=local \
-  -e Storage__Local__RootPath=/app/storage/assets \
-  -e Storage__PublicBaseUrl=http://localhost:5121/content \
-  -e Persistence__Database__ConnectionString="Data Source=/app/storage/nekohub.db" \
-  -v $(pwd)/data:/app/storage \
-  nekohub:latest
-```
+- 认证 Header：`Authorization: Bearer <API_KEY>`
+- 受保护入口：
+  - `/api/v1/assets`
+  - `/mcp`
+- 支持多 Key：
+  - `Auth__ApiKey__Keys__0`
+  - `Auth__ApiKey__Keys__1`
+  - ...
 
-## Docker Compose 运行方式
+生产环境建议开启 API Key 并使用高强度密钥；开发环境可按配置选择是否关闭。
 
-### Local 模式
+## MCP Alpha 能力清单
 
-```bash
-docker compose up --build nekohub
-```
+### Tool Surface
 
-### S3-compatible 模式（示例：MinIO）
+- `get_asset`
+- `list_assets`
+- `get_asset_content_url`
+- `upload_asset`
+- `delete_asset`
+- `list_skills`
+- `run_asset_skill`
 
-```bash
-docker compose --profile s3 up --build minio minio-init nekohub-s3
-```
+### Resource Surface
 
-## 环境变量配置方式
+- `asset://{id}`
+- `asset://{id}/derivatives`
+- `asset://{id}/structured-results`
+- `skill://{name}`
 
-- ASP.NET Core 支持 `Section__SubSection__Key` 形式覆盖 `appsettings.json`。
-- 推荐通过环境变量或密钥管理系统注入敏感配置，不要把真实密钥提交到仓库。
+### Prompt Surface
 
-## 数据库说明（当前 SQLite）
+- `inspect_asset`
+- `enrich_asset`
+- `review_asset_outputs`
 
-- 当前仅使用 SQLite。
-- 启动时自动执行 EF Core 迁移。
-- 默认连接串位于 `src/NekoHub.Api/appsettings.json`，建议生产环境通过环境变量覆盖。
+## 部署路径
 
-## 已知限制
+- 本地源码部署
+- Docker 单容器部署
+- Docker Compose（Local / S3-compatible）
 
-- 当前无鉴权与多租户隔离能力。
-- 结构化结果为最小样板，当前仅内置 `basic_caption` 的 deterministic 产出。
-- 当前不包含复杂任务调度能力（如队列重试、分布式处理编排）。
+详细步骤请看：[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
 
-## 后续路线图（简版）
+## 配置要点
 
-- 强化处理任务生命周期管理（重试、失败状态、可观测性）。
-- 扩展更多可插拔处理能力（OCR、tagging、审核评分等）。
-- 增强部署形态与运行时治理能力。
+- 默认数据库：SQLite
+- 默认最简模式：Local 存储 + SQLite
+- S3-compatible 模式：对象存储走 S3，数据库仍使用 SQLite
+- 推荐用环境变量覆盖敏感配置，不要把真实密钥写入仓库
+
+参考模板：`.env.example`
+
+## 已知限制（alpha）
+
+- `upload_asset` 当前使用 `contentBase64`（阶段性策略，不代表最终二进制传输方案）
+- Local 模式通过 `/content` 暴露静态文件访问（公开 URL 语义）
+- 默认数据库为 SQLite（首发阶段优先简单可部署）
+- Skill 执行为进程内同步顺序执行（无异步队列/重试机制）
+- 当前不提供 execution history 独立查询 API（仅提供 `latestExecutionSummary` 轻量摘要）
+
+## Future Work（非当前已完成）
+
+- execution history 查询与重跑能力
+- 异步 worker / 更强可观测性
+- 更多可插拔处理能力（OCR、tagging 等）
+- 非图片资产类型支持（视频/音频/Excel 等）
+
+## 技术栈
+
+- .NET 10 / ASP.NET Core Web API
+- Entity Framework Core 10 + SQLite
+- Local 文件存储 + S3-compatible 对象存储
+- SixLabors.ImageSharp
+- Docker / Docker Compose
 
 ## 许可证
 
-本项目采用 `Apache License 2.0`，详见 [LICENSE](./LICENSE)。
-
-## 部署文档
-
-详细部署说明见 [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
+本项目采用 [Apache License 2.0](./LICENSE)。

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NekoHub.Api.Contracts.Responses;
 
@@ -8,6 +9,7 @@ namespace NekoHub.Api.Controllers;
 public sealed class SystemController : ControllerBase
 {
     [HttpGet("ping")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public IActionResult Ping()
     {

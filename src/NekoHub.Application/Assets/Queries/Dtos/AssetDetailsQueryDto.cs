@@ -22,4 +22,5 @@ public sealed record AssetDetailsQueryDto(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     IReadOnlyList<AssetDerivativeSummaryQueryDto> Derivatives,
-    IReadOnlyList<AssetStructuredResultSummaryQueryDto> StructuredResults);
+    IReadOnlyList<AssetStructuredResultSummaryQueryDto> StructuredResults,
+    AssetLatestExecutionSummaryQueryDto? LatestExecutionSummary);

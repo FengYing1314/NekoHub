@@ -1,34 +1,44 @@
 using Microsoft.Extensions.Logging;
 using NekoHub.Application.Abstractions.Processing;
+using NekoHub.Application.Abstractions.Skills;
 
 namespace NekoHub.Infrastructure.Processing;
 
 public sealed class AssetProcessingDispatcher(
-    IEnumerable<IAssetPostProcessor> processors,
+    IAssetSkillDefinitionProvider skillDefinitionProvider,
+    ISkillRunner skillRunner,
     ILogger<AssetProcessingDispatcher> logger) : IAssetProcessingDispatcher
 {
-    private readonly IReadOnlyList<IAssetPostProcessor> _processors = processors
-        .OrderBy(static processor => processor.Order)
-        .ThenBy(static processor => processor.Name, StringComparer.Ordinal)
-        .ToArray();
-
     public async Task DispatchAssetCreatedAsync(
         AssetCreatedProcessingContext context,
         CancellationToken cancellationToken = default)
     {
-        foreach (var processor in _processors)
+        var skillContext = new SkillExecutionContext(context, SkillTriggerSources.Upload);
+        var skills = skillDefinitionProvider
+            .GetForAssetCreated(context)
+            .OrderBy(static skill => skill.Order)
+            .ThenBy(static skill => skill.Name, StringComparer.Ordinal);
+
+        foreach (var skill in skills)
         {
             try
             {
-                await processor.ProcessAsync(context, cancellationToken);
+                var runResult = await skillRunner.RunAsync(skill, skillContext, cancellationToken);
+                if (!runResult.Succeeded)
+                {
+                    logger.LogWarning(
+                        "Skill finished with failed steps. Skill={SkillName}, AssetId={AssetId}",
+                        skill.Name,
+                        context.AssetId);
+                }
             }
             catch (Exception exception)
             {
-                // 第一阶段骨架语义：处理步骤失败不影响上传主链路，先记录并继续执行后续步骤。
+                // Skill 管线语义：单个 skill 失败不影响上传主链路，继续执行后续 skill。
                 logger.LogError(
                     exception,
-                    "Asset post-process step failed. Step={StepName}, AssetId={AssetId}",
-                    processor.Name,
+                    "Skill execution failed. Skill={SkillName}, AssetId={AssetId}",
+                    skill.Name,
                     context.AssetId);
             }
         }
