@@ -107,7 +107,7 @@ cp .env.example .env
 3. 启动：
 
 ```bash
-docker compose up --build nekohub
+docker compose up -d
 ```
 
 4. 验证：
@@ -127,6 +127,10 @@ docker compose --profile s3 up --build minio minio-init nekohub-s3
 - NekoHub S3 模式示例：`http://localhost:5122`
 - MinIO API：`http://localhost:9000`
 - MinIO Console：`http://localhost:9001`
+
+Compose 默认拉取镜像：
+
+- `ghcr.io/fengying1314/nekohub:latest`
 
 ## 7. API Key 配置与调用
 

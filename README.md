@@ -56,10 +56,10 @@ cp .env.example .env
 
 2. 修改 `.env` 中的 API Key（至少改 `Auth__ApiKey__Keys__0`）。
 
-3. 启动 Local 模式：
+3. 直接拉取 GHCR 预构建镜像并启动 Local 模式：
 
 ```bash
-docker compose up --build nekohub
+docker compose up -d
 ```
 
 4. 健康检查：
@@ -145,7 +145,11 @@ curl -X POST "http://localhost:5121/mcp" \
 
 - 本地源码部署
 - Docker 单容器部署
-- Docker Compose（Local / S3-compatible）
+- Docker Compose（默认直接拉取 GHCR 预构建镜像）
+
+默认镜像：
+
+- `ghcr.io/fengying1314/nekohub:latest`
 
 详细步骤请看：[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
 

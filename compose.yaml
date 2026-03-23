@@ -3,10 +3,8 @@ name: nekohub
 services:
   # 最小首发体验：Local Storage + SQLite
   nekohub:
-    image: nekohub:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${NEKOHUB_IMAGE:-ghcr.io/fengying1314/nekohub:latest}
+    pull_policy: always
     env_file:
       - .env
     ports:
@@ -26,11 +24,9 @@ services:
 
   # S3-compatible 示例（配合 MinIO）
   nekohub-s3:
-    image: nekohub:latest
+    image: ${NEKOHUB_IMAGE:-ghcr.io/fengying1314/nekohub:latest}
+    pull_policy: always
     profiles: ["s3"]
-    build:
-      context: .
-      dockerfile: Dockerfile
     env_file:
       - .env
     depends_on:
