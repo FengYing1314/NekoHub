@@ -84,7 +84,8 @@ public static class McpAssetToolSchemas
                     ["contentEncoding"] = "base64"
                 },
                 ["description"] = NullableStringSchema(),
-                ["altText"] = NullableStringSchema()
+                ["altText"] = NullableStringSchema(),
+                ["isPublic"] = BooleanSchema()
             },
             ["fileName", "contentType", "contentBase64"]);
     }
@@ -105,6 +106,7 @@ public static class McpAssetToolSchemas
                 ["height"] = NullableIntegerSchema(),
                 ["checksumSha256"] = NullableStringSchema(),
                 ["publicUrl"] = NullableStringSchema("uri"),
+                ["isPublic"] = BooleanSchema(),
                 ["description"] = NullableStringSchema(),
                 ["altText"] = NullableStringSchema(),
                 ["createdAtUtc"] = StringSchema("date-time"),
@@ -163,6 +165,7 @@ public static class McpAssetToolSchemas
                 "contentType",
                 "extension",
                 "size",
+                "isPublic",
                 "createdAtUtc",
                 "updatedAtUtc",
                 "derivatives",
@@ -188,6 +191,7 @@ public static class McpAssetToolSchemas
                             ["width"] = NullableIntegerSchema(),
                             ["height"] = NullableIntegerSchema(),
                             ["publicUrl"] = NullableStringSchema("uri"),
+                            ["isPublic"] = BooleanSchema(),
                             ["createdAtUtc"] = StringSchema("date-time"),
                             ["updatedAtUtc"] = StringSchema("date-time")
                         },
@@ -198,6 +202,7 @@ public static class McpAssetToolSchemas
                             "originalFileName",
                             "contentType",
                             "size",
+                            "isPublic",
                             "createdAtUtc",
                             "updatedAtUtc"
                         ])),

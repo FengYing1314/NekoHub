@@ -305,6 +305,7 @@ public class McpToolSurfaceTests : IntegrationTestBase
         structuredContent["contentType"]?.GetValue<string>().Should().Be("image/png");
         structuredContent["width"]?.GetValue<int>().Should().Be(1);
         structuredContent["height"]?.GetValue<int>().Should().Be(1);
+        structuredContent["isPublic"]?.GetValue<bool>().Should().BeTrue();
         structuredContent["description"]?.GetValue<string>().Should().Be("from-mcp-upload");
         structuredContent["altText"]?.GetValue<string>().Should().Be("mcp-alt-text");
         structuredContent["storageProvider"].Should().BeNull();
@@ -432,6 +433,100 @@ public class McpToolSurfaceTests : IntegrationTestBase
         asset["description"]?.GetValue<string>().Should().Be("patched-from-mcp");
         asset["altText"].Should().BeNull();
         asset["originalFileName"]?.GetValue<string>().Should().Be("patched-from-mcp.png");
+    }
+
+    [Fact]
+    public async Task Mcp_Private_Asset_Tools_Should_Hide_PublicUrl_And_Block_Content_Url()
+    {
+        var pngBytes = CreatePngBytes(1, 1);
+        var uploadResponse = await PostToolCallAsync(
+            id: 45,
+            name: "upload_asset",
+            arguments: new
+            {
+                fileName = "mcp-private.png",
+                contentType = "image/png",
+                contentBase64 = Convert.ToBase64String(pngBytes),
+                isPublic = false
+            });
+
+        uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var uploadJson = await ReadJsonObjectAsync(uploadResponse);
+        uploadJson["result"]?["isError"].Should().BeNull();
+
+        var uploadedAsset = uploadJson["result"]?["structuredContent"]?.AsObject();
+        uploadedAsset.Should().NotBeNull();
+        uploadedAsset!["isPublic"]?.GetValue<bool>().Should().BeFalse();
+        uploadedAsset["publicUrl"].Should().BeNull();
+        var uploadedDerivatives = uploadedAsset["derivatives"]?.AsArray();
+        uploadedDerivatives.Should().NotBeNull();
+        uploadedDerivatives!
+            .Select(node => node?["publicUrl"])
+            .Should()
+            .AllSatisfy(publicUrl => publicUrl.Should().BeNull());
+
+        var assetId = Guid.Parse(uploadedAsset["id"]!.GetValue<string>());
+
+        var getAssetResponse = await PostToolCallAsync(
+            id: 46,
+            name: "get_asset",
+            arguments: new
+            {
+                id = assetId
+            });
+
+        getAssetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getAssetJson = await ReadJsonObjectAsync(getAssetResponse);
+        getAssetJson["result"]?["isError"].Should().BeNull();
+        getAssetJson["result"]?["structuredContent"]?["isPublic"]?.GetValue<bool>().Should().BeFalse();
+        getAssetJson["result"]?["structuredContent"]?["publicUrl"].Should().BeNull();
+
+        var listAssetsResponse = await PostToolCallAsync(
+            id: 47,
+            name: "list_assets",
+            arguments: new
+            {
+                page = 1,
+                pageSize = 10
+            });
+
+        listAssetsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var listAssetsJson = await ReadJsonObjectAsync(listAssetsResponse);
+        var listedAsset = listAssetsJson["result"]?["structuredContent"]?["items"]?.AsArray()
+            ?.Single(node => node?["id"]?.GetValue<string>() == assetId.ToString());
+        listedAsset.Should().NotBeNull();
+        listedAsset!["isPublic"]?.GetValue<bool>().Should().BeFalse();
+        listedAsset["publicUrl"].Should().BeNull();
+
+        var contentUrlResponse = await PostToolCallAsync(
+            id: 48,
+            name: "get_asset_content_url",
+            arguments: new
+            {
+                id = assetId
+            });
+
+        contentUrlResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var contentUrlJson = await ReadJsonObjectAsync(contentUrlResponse);
+        contentUrlJson["result"]?["isError"]?.GetValue<bool>().Should().BeTrue();
+        contentUrlJson["result"]?["structuredContent"]?["error"]?["code"]?.GetValue<string>().Should().Be("asset_not_found");
+
+        var patchResponse = await PostToolCallAsync(
+            id: 49,
+            name: "patch_asset",
+            arguments: new
+            {
+                id = assetId,
+                isPublic = true
+            });
+
+        patchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var patchJson = await ReadJsonObjectAsync(patchResponse);
+        patchJson["result"]?["isError"].Should().BeNull();
+        patchJson["result"]?["structuredContent"]?["isPublic"]?.GetValue<bool>().Should().BeTrue();
+        patchJson["result"]?["structuredContent"]?["publicUrl"]?.GetValue<string>()
+            .Should()
+            .StartWith("http://test-server/content");
     }
 
     [Fact]

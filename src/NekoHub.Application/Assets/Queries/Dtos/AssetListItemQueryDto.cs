@@ -13,5 +13,6 @@ public sealed record AssetListItemQueryDto(
     int? Height,
     string StorageProvider,
     string? PublicUrl,
+    bool IsPublic,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);

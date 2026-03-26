@@ -105,14 +105,15 @@ public sealed class AssetQueryService(
             ChecksumSha256: asset.ChecksumSha256,
             StorageProvider: asset.StorageProvider,
             StorageKey: asset.StorageKey,
-            PublicUrl: asset.PublicUrl,
+            PublicUrl: GetVisiblePublicUrl(asset.IsPublic, asset.PublicUrl),
+            IsPublic: asset.IsPublic,
             Description: asset.Description,
             AltText: asset.AltText,
             CreatedAtUtc: asset.CreatedAtUtc,
             UpdatedAtUtc: asset.UpdatedAtUtc,
             Derivatives: derivatives
                 .OrderBy(static derivative => derivative.CreatedAtUtc)
-                .Select(ToDerivativeDto)
+                .Select(derivative => ToDerivativeDto(derivative, asset.IsPublic))
                 .ToList(),
             StructuredResults: structuredResults
                 .OrderBy(static result => result.CreatedAtUtc)
@@ -123,7 +124,7 @@ public sealed class AssetQueryService(
                 : ToLatestExecutionSummaryDto(latestExecution, latestExecutionSteps));
     }
 
-    private static AssetDerivativeSummaryQueryDto ToDerivativeDto(AssetDerivative derivative)
+    private static AssetDerivativeSummaryQueryDto ToDerivativeDto(AssetDerivative derivative, bool isPublic)
     {
         return new AssetDerivativeSummaryQueryDto(
             Kind: derivative.Kind,
@@ -132,7 +133,7 @@ public sealed class AssetQueryService(
             Size: derivative.Size,
             Width: derivative.Width,
             Height: derivative.Height,
-            PublicUrl: derivative.PublicUrl,
+            PublicUrl: GetVisiblePublicUrl(isPublic, derivative.PublicUrl),
             CreatedAtUtc: derivative.CreatedAtUtc);
     }
 
@@ -156,9 +157,15 @@ public sealed class AssetQueryService(
             Width: asset.Width,
             Height: asset.Height,
             StorageProvider: asset.StorageProvider,
-            PublicUrl: asset.PublicUrl,
+            PublicUrl: GetVisiblePublicUrl(asset.IsPublic, asset.PublicUrl),
+            IsPublic: asset.IsPublic,
             CreatedAtUtc: asset.CreatedAtUtc,
             UpdatedAtUtc: asset.UpdatedAtUtc);
+    }
+
+    private static string? GetVisiblePublicUrl(bool isPublic, string? publicUrl)
+    {
+        return isPublic ? publicUrl : null;
     }
 
     private static AssetLatestExecutionSummaryQueryDto ToLatestExecutionSummaryDto(

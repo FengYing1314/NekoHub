@@ -9,4 +9,6 @@ public sealed class UploadAssetFormRequest
     public string? Description { get; init; }
 
     public string? AltText { get; init; }
+
+    public bool? IsPublic { get; init; }
 }

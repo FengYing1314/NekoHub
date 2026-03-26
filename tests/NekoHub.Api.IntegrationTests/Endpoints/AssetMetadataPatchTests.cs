@@ -72,6 +72,31 @@ public class AssetMetadataPatchTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Patch_Metadata_Should_Update_IsPublic_When_Field_Is_Specified()
+    {
+        var asset = await UploadTestImageAsync(
+            "patch-visibility.png",
+            "image/png",
+            new byte[96]);
+
+        asset.IsPublic.Should().BeTrue();
+
+        var response = await PatchAsync(
+            asset.Id,
+            """
+            {
+              "isPublic": false
+            }
+            """);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var patched = await GetResponseDataAsync<AssetResponse>(response);
+        patched.Should().NotBeNull();
+        patched!.IsPublic.Should().BeFalse();
+        patched.PublicUrl.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Patch_Metadata_Should_Return_404_For_Missing_Asset()
     {
         var response = await PatchAsync(

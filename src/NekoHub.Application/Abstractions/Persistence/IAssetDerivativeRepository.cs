@@ -13,6 +13,8 @@ public interface IAssetDerivativeRepository
         Guid sourceAssetId,
         CancellationToken cancellationToken = default);
 
+    Task<AssetDerivative?> GetByStorageKeyAsync(string storageKey, CancellationToken cancellationToken = default);
+
     Task AddAsync(AssetDerivative derivative, CancellationToken cancellationToken = default);
 
     Task DeleteRangeAsync(IEnumerable<AssetDerivative> derivatives, CancellationToken cancellationToken = default);

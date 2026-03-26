@@ -11,11 +11,15 @@ namespace NekoHub.Infrastructure.Storage.S3;
 public sealed class S3AssetStorage : IAssetStorage, IDisposable
 {
     private readonly S3StorageOptions _s3StorageOptions;
+    private readonly StorageOptions _storageOptions;
     private readonly Lazy<IAmazonS3> _lazyClient;
 
-    public S3AssetStorage(IOptions<S3StorageOptions> s3StorageOptions)
+    public S3AssetStorage(
+        IOptions<S3StorageOptions> s3StorageOptions,
+        IOptions<StorageOptions> storageOptions)
     {
         _s3StorageOptions = s3StorageOptions.Value;
+        _storageOptions = storageOptions.Value;
         _lazyClient = new Lazy<IAmazonS3>(CreateClient, isThreadSafe: true);
     }
 
@@ -160,29 +164,16 @@ public sealed class S3AssetStorage : IAssetStorage, IDisposable
                 .Split('/', StringSplitOptions.RemoveEmptyEntries)
                 .Select(Uri.EscapeDataString));
 
-        if (!string.IsNullOrWhiteSpace(_s3StorageOptions.PublicBaseUrl))
+        var publicBaseUrl = !string.IsNullOrWhiteSpace(_storageOptions.PublicBaseUrl)
+            ? _storageOptions.PublicBaseUrl
+            : _s3StorageOptions.PublicBaseUrl;
+
+        if (!string.IsNullOrWhiteSpace(publicBaseUrl))
         {
-            return $"{_s3StorageOptions.PublicBaseUrl.TrimEnd('/')}/{encodedKey}";
+            return $"{publicBaseUrl.TrimEnd('/')}/{encodedKey}";
         }
 
-        if (!Uri.TryCreate(_s3StorageOptions.Endpoint, UriKind.Absolute, out var endpointUri))
-        {
-            return null;
-        }
-
-        var bucket = _s3StorageOptions.Bucket!.Trim();
-        if (_s3StorageOptions.ForcePathStyle)
-        {
-            return $"{endpointUri.Scheme}://{endpointUri.Authority}/{Uri.EscapeDataString(bucket)}/{encodedKey}";
-        }
-
-        var builder = new UriBuilder(endpointUri)
-        {
-            Host = $"{bucket}.{endpointUri.Host}",
-            Path = encodedKey
-        };
-
-        return builder.Uri.ToString().TrimEnd('/');
+        return null;
     }
 
     private static bool IsNotFound(AmazonS3Exception exception)

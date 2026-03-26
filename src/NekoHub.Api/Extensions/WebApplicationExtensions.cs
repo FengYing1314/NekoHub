@@ -1,11 +1,7 @@
 using NekoHub.Api.Middleware;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Options;
 using NekoHub.Api.Configuration;
-using NekoHub.Application.Abstractions.Storage;
-using NekoHub.Infrastructure.Options;
+using NekoHub.Application.Assets.Services;
 using NekoHub.Infrastructure.Persistence;
-using NekoHub.Infrastructure.Storage.Local;
 
 namespace NekoHub.Api.Extensions;
 
@@ -14,40 +10,29 @@ public static class WebApplicationExtensions
     public static WebApplication UseApiLayer(this WebApplication app)
     {
         app.Services.InitializeAssetPersistence();
-        var defaultStorage = app.Services.GetRequiredService<IAssetStorageResolver>().ResolveDefault();
         app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
-        app.UseLocalStoragePublicContent(defaultStorage);
         app.UseHttpsRedirection();
         app.UseCors(ApiCorsDefaults.PolicyName);
         app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapOpenApi("/openapi/{documentName}.json");
+        app.MapPublicContent();
         app.MapControllers();
 
         return app;
     }
 
-    private static void UseLocalStoragePublicContent(this WebApplication app, IAssetStorage defaultStorage)
+    private static void MapPublicContent(this WebApplication app)
     {
-        if (defaultStorage is not LocalAssetStorage)
+        app.MapMethods("/content/{**storageKey}", ["GET", "HEAD"], async (
+                string storageKey,
+                IAssetContentService assetContentService,
+                CancellationToken cancellationToken) =>
         {
-            return;
-        }
-
-        var localOptions = app.Services.GetRequiredService<IOptions<LocalStorageOptions>>().Value;
-        var rootPath = Path.GetFullPath(localOptions.RootPath);
-
-        if (localOptions.CreateDirectoryIfMissing)
-        {
-            Directory.CreateDirectory(rootPath);
-        }
-
-        // 第一版不做文件流代理，直接把本地存储目录映射到 /content 供 publicUrl 访问。
-        app.UseStaticFiles(new StaticFileOptions
-        {
-            FileProvider = new PhysicalFileProvider(rootPath),
-            RequestPath = "/content"
-        });
+            var publicContent = await assetContentService.OpenPublicContentAsync(storageKey, cancellationToken);
+            return Results.File(publicContent.Content, publicContent.ContentType, enableRangeProcessing: true);
+        })
+        .AllowAnonymous();
     }
 }

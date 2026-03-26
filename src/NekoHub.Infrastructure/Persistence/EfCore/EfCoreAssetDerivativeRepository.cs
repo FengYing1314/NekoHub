@@ -26,6 +26,14 @@ public sealed class EfCoreAssetDerivativeRepository(AssetDbContext dbContext) : 
             .ToListAsync(cancellationToken);
     }
 
+    public Task<AssetDerivative?> GetByStorageKeyAsync(
+        string storageKey,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.AssetDerivatives
+            .SingleOrDefaultAsync(derivative => derivative.StorageKey == storageKey, cancellationToken);
+    }
+
     public async Task AddAsync(AssetDerivative derivative, CancellationToken cancellationToken = default)
     {
         await dbContext.AssetDerivatives.AddAsync(derivative, cancellationToken);

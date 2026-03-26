@@ -67,7 +67,8 @@ public sealed class UploadAssetMcpTool(
                 DeclaredContentType: input.ContentType!.Trim(),
                 DeclaredSize: contentBytes.LongLength,
                 Description: input.Description,
-                AltText: input.AltText),
+                AltText: input.AltText,
+                IsPublic: input.IsPublic ?? true),
             cancellationToken);
 
         var details = await assetQueryService.GetByIdAsync(uploaded.Id, cancellationToken);
@@ -118,5 +119,6 @@ public sealed class UploadAssetMcpTool(
         string? ContentType,
         string? ContentBase64,
         string? Description,
-        string? AltText);
+        string? AltText,
+        bool? IsPublic);
 }

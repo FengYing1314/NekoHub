@@ -60,6 +60,10 @@ public sealed class AssetEntityTypeConfiguration : IEntityTypeConfiguration<Asse
         builder.Property(x => x.PublicUrl)
             .HasMaxLength(2048);
 
+        builder.Property(x => x.IsPublic)
+            .IsRequired()
+            .HasDefaultValue(true);
+
         builder.Property(x => x.Description)
             .HasMaxLength(1000);
 

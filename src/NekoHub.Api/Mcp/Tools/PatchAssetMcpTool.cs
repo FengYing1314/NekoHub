@@ -25,7 +25,11 @@ public sealed class PatchAssetMcpTool(
                 },
                 ["description"] = McpAssetToolSchemas.NullableString,
                 ["altText"] = McpAssetToolSchemas.NullableString,
-                ["originalFileName"] = McpAssetToolSchemas.NullableString
+                ["originalFileName"] = McpAssetToolSchemas.NullableString,
+                ["isPublic"] = new
+                {
+                    type = "boolean"
+                }
             },
             required = new[] { "id" },
             additionalProperties = false
@@ -56,7 +60,8 @@ public sealed class PatchAssetMcpTool(
                 AssetId: assetId,
                 Description: input.Description,
                 AltText: input.AltText,
-                OriginalFileName: input.OriginalFileName),
+                OriginalFileName: input.OriginalFileName,
+                IsPublic: input.IsPublic),
             cancellationToken);
 
         var asset = await assetQueryService.GetByIdAsync(assetId, cancellationToken);
@@ -67,5 +72,6 @@ public sealed class PatchAssetMcpTool(
         string? Id,
         NekoHub.Application.Common.Models.OptionalValue<string?> Description,
         NekoHub.Application.Common.Models.OptionalValue<string?> AltText,
-        NekoHub.Application.Common.Models.OptionalValue<string?> OriginalFileName);
+        NekoHub.Application.Common.Models.OptionalValue<string?> OriginalFileName,
+        NekoHub.Application.Common.Models.OptionalValue<bool> IsPublic);
 }

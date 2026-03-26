@@ -38,6 +38,7 @@ public sealed class AssetsController(
                          - file: kitten.png
                          - description: "cat avatar"
                          - altText: "orange cat looking at camera"
+                         - isPublic: true
                          
                          成功响应示例（ApiResponse）：
                          {
@@ -50,7 +51,8 @@ public sealed class AssetsController(
                              "size": 183204,
                              "storageProvider": "local",
                              "storageKey": "2026/03/10/...",
-                             "publicUrl": "https://localhost:7151/content/..."
+                             "publicUrl": "https://localhost:7151/content/...",
+                             "isPublic": true
                            }
                          }
                          """)]
@@ -103,7 +105,8 @@ public sealed class AssetsController(
                 DeclaredContentType: request.File.ContentType,
                 DeclaredSize: request.File.Length,
                 Description: request.Description,
-                AltText: request.AltText),
+                AltText: request.AltText,
+                IsPublic: request.IsPublic ?? true),
             cancellationToken);
 
         var response = ApiResponseFactory.Success(ToResponse(uploaded));
@@ -148,7 +151,8 @@ public sealed class AssetsController(
                 AssetId: id,
                 Description: request.Description,
                 AltText: request.AltText,
-                OriginalFileName: request.OriginalFileName),
+                OriginalFileName: request.OriginalFileName,
+                IsPublic: request.IsPublic),
             cancellationToken);
 
         var asset = await assetQueryService.GetByIdAsync(id, cancellationToken);
@@ -232,7 +236,8 @@ public sealed class AssetsController(
     [EndpointSummary("Redirect to public content URL")]
     [EndpointDescription("""
                          第一版内容访问采用重定向语义：
-                         - 成功：返回 307，并在 Location 头中提供 publicUrl
+                         - 公开资产：返回 307，并在 Location 头中提供 publicUrl
+                         - 私有资产 / 不存在资产：统一返回 404 + error.code = asset_not_found
                          - 失败：统一返回 404 + error.code = asset_not_found
                          """)]
     public async Task<IActionResult> GetContentAsync([FromRoute] Guid id, CancellationToken cancellationToken)
@@ -260,6 +265,7 @@ public sealed class AssetsController(
             StorageProvider: dto.StorageProvider,
             StorageKey: dto.StorageKey,
             PublicUrl: dto.PublicUrl,
+            IsPublic: dto.IsPublic,
             Description: dto.Description,
             AltText: dto.AltText,
             CreatedAtUtc: dto.CreatedAtUtc,
@@ -286,6 +292,7 @@ public sealed class AssetsController(
             StorageProvider: dto.StorageProvider,
             StorageKey: dto.StorageKey,
             PublicUrl: dto.PublicUrl,
+            IsPublic: dto.IsPublic,
             Description: dto.Description,
             AltText: dto.AltText,
             CreatedAtUtc: dto.CreatedAtUtc,
@@ -340,6 +347,7 @@ public sealed class AssetsController(
                 Height: item.Height,
                 StorageProvider: item.StorageProvider,
                 PublicUrl: item.PublicUrl,
+                IsPublic: item.IsPublic,
                 CreatedAtUtc: item.CreatedAtUtc,
                 UpdatedAtUtc: item.UpdatedAtUtc))
             .ToList();

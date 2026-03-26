@@ -81,7 +81,8 @@ public sealed class AssetCommandService(
             width: metadata.Width,
             height: metadata.Height,
             checksumSha256: checksumSha256,
-            publicUrl: stored.PublicUrl);
+            publicUrl: stored.PublicUrl,
+            isPublic: command.IsPublic);
 
         asset.UpdateAccessibleMetadata(command.Description, command.AltText);
         asset.MarkReady(stored.PublicUrl);
@@ -124,6 +125,11 @@ public sealed class AssetCommandService(
             description: command.Description.IsSet ? command.Description.Value : asset.Description,
             altText: command.AltText.IsSet ? command.AltText.Value : asset.AltText,
             originalFileName: originalFileName);
+
+        if (command.IsPublic.IsSet)
+        {
+            asset.SetVisibility(command.IsPublic.Value);
+        }
 
         await assetRepository.SaveChangesAsync(cancellationToken);
         return ToDto(asset);
@@ -275,7 +281,8 @@ public sealed class AssetCommandService(
             ChecksumSha256: asset.ChecksumSha256,
             StorageProvider: asset.StorageProvider,
             StorageKey: asset.StorageKey,
-            PublicUrl: asset.PublicUrl,
+            PublicUrl: asset.IsPublic ? asset.PublicUrl : null,
+            IsPublic: asset.IsPublic,
             Description: asset.Description,
             AltText: asset.AltText,
             CreatedAtUtc: asset.CreatedAtUtc,

@@ -20,6 +20,12 @@ public sealed class EfCoreAssetRepository(AssetDbContext dbContext) : IAssetRepo
             .SingleOrDefaultAsync(x => x.Id == assetId, cancellationToken);
     }
 
+    public Task<Asset?> GetByStorageKeyAsync(string storageKey, CancellationToken cancellationToken = default)
+    {
+        return dbContext.Assets
+            .SingleOrDefaultAsync(x => x.StorageKey == storageKey, cancellationToken);
+    }
+
     public async Task<PagedResult<Asset>> GetPagedAsync(GetAssetsPagedQuery query, CancellationToken cancellationToken = default)
     {
         var safePage = query.Page <= 0 ? 1 : query.Page;

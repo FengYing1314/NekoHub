@@ -6,4 +6,5 @@ public sealed record PatchAssetMetadataCommand(
     Guid AssetId,
     OptionalValue<string?> Description,
     OptionalValue<string?> AltText,
-    OptionalValue<string?> OriginalFileName);
+    OptionalValue<string?> OriginalFileName,
+    OptionalValue<bool> IsPublic);

@@ -11,6 +11,8 @@ public interface IAssetRepository
 
     Task<Asset?> GetByIdAsync(Guid assetId, CancellationToken cancellationToken = default);
 
+    Task<Asset?> GetByStorageKeyAsync(string storageKey, CancellationToken cancellationToken = default);
+
     Task<PagedResult<Asset>> GetPagedAsync(GetAssetsPagedQuery query, CancellationToken cancellationToken = default);
 
     Task<AssetUsageStatsQueryDto> GetUsageStatsAsync(CancellationToken cancellationToken = default);

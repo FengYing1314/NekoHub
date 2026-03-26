@@ -6,4 +6,5 @@ public sealed record UploadAssetCommand(
     string? DeclaredContentType,
     long DeclaredSize,
     string? Description,
-    string? AltText);
+    string? AltText,
+    bool IsPublic = true);

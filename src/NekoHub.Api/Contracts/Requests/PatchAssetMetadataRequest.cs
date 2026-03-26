@@ -9,4 +9,6 @@ public sealed class PatchAssetMetadataRequest
     public OptionalValue<string?> AltText { get; init; }
 
     public OptionalValue<string?> OriginalFileName { get; init; }
+
+    public OptionalValue<bool> IsPublic { get; init; }
 }

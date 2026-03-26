@@ -17,6 +17,7 @@ public sealed record AssetDto(
     string StorageProvider,
     string StorageKey,
     string? PublicUrl,
+    bool IsPublic,
     string? Description,
     string? AltText,
     DateTimeOffset CreatedAtUtc,

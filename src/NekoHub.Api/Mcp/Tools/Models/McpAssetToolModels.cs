@@ -16,6 +16,7 @@ public sealed record McpAssetView(
     int? Height,
     string? ChecksumSha256,
     string? PublicUrl,
+    bool IsPublic,
     string? Description,
     string? AltText,
     DateTimeOffset CreatedAtUtc,
@@ -65,6 +66,7 @@ public sealed record McpAssetListItemView(
     int? Width,
     int? Height,
     string? PublicUrl,
+    bool IsPublic,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 
@@ -121,6 +123,7 @@ public static class McpAssetToolModelMapper
             Height: dto.Height,
             ChecksumSha256: dto.ChecksumSha256,
             PublicUrl: dto.PublicUrl,
+            IsPublic: dto.IsPublic,
             Description: dto.Description,
             AltText: dto.AltText,
             CreatedAtUtc: dto.CreatedAtUtc,
@@ -175,6 +178,7 @@ public static class McpAssetToolModelMapper
                     Width: item.Width,
                     Height: item.Height,
                     PublicUrl: item.PublicUrl,
+                    IsPublic: item.IsPublic,
                     CreatedAtUtc: item.CreatedAtUtc,
                     UpdatedAtUtc: item.UpdatedAtUtc))
                 .ToList(),

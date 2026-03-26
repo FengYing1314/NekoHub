@@ -30,6 +30,8 @@ public sealed class Asset
 
     public string? PublicUrl { get; private set; }
 
+    public bool IsPublic { get; private set; }
+
     public string? Description { get; private set; }
 
     public string? AltText { get; private set; }
@@ -57,7 +59,8 @@ public sealed class Asset
         int? width = null,
         int? height = null,
         string? checksumSha256 = null,
-        string? publicUrl = null)
+        string? publicUrl = null,
+        bool isPublic = true)
     {
         Id = id;
         Type = type;
@@ -73,6 +76,7 @@ public sealed class Asset
         Height = height;
         ChecksumSha256 = checksumSha256;
         PublicUrl = publicUrl;
+        IsPublic = isPublic;
         CreatedAtUtc = DateTimeOffset.UtcNow;
         UpdatedAtUtc = CreatedAtUtc;
     }
@@ -107,6 +111,12 @@ public sealed class Asset
         Description = description;
         AltText = altText;
         OriginalFileName = originalFileName;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    public void SetVisibility(bool isPublic)
+    {
+        IsPublic = isPublic;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 }

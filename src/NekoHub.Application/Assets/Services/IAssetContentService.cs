@@ -5,4 +5,8 @@ namespace NekoHub.Application.Assets.Services;
 public interface IAssetContentService
 {
     Task<AssetContentRedirectDto> GetRedirectAsync(Guid assetId, CancellationToken cancellationToken = default);
+
+    Task<AssetPublicContentStreamDto> OpenPublicContentAsync(
+        string storageKey,
+        CancellationToken cancellationToken = default);
 }
