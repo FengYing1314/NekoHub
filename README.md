@@ -72,7 +72,7 @@ curl http://localhost:5121/api/v1/system/ping
 5. 访问前端管理面板：
 
 - `http://localhost:5173`
-- 默认通过同域代理访问后端 `/api` 与 `/mcp`
+- 默认通过 `FRONTEND_VITE_API_BASE_URL` 直连后端（默认 `http://localhost:5121`）
 
 ### 方式 B：本地源码运行
 
@@ -164,7 +164,7 @@ curl -X POST "http://localhost:5121/mcp" \
 
 - 本地源码部署
 - Docker 单容器部署
-- Docker Compose（默认一键启动前端 + 后端；后端镜像走 GHCR）
+- Docker Compose（默认一键启动前端 + 后端，前后端分离）
 
 默认镜像：
 
@@ -177,7 +177,9 @@ curl -X POST "http://localhost:5121/mcp" \
 - 默认数据库：SQLite
 - 默认最简模式：Local 存储 + SQLite
 - S3-compatible 模式：对象存储走 S3，数据库仍使用 SQLite
+- 前端通过 `VITE_API_BASE_URL` 显式访问后端 API（compose 里由 `FRONTEND_VITE_API_BASE_URL` 注入）
 - 推荐用环境变量覆盖敏感配置，不要把真实密钥写入仓库
+- 若需要统一域名 / HTTPS / 反向代理，请在仓库外层自行配置（Nginx/Caddy/Traefik 等）
 
 参考模板：`.env.example`
 

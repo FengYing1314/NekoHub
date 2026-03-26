@@ -29,7 +29,7 @@
 - `Auth__ApiKey__Enabled`：是否启用 API Key
 - `Auth__ApiKey__Keys__0`：第一把 API Key（可继续 `__1`、`__2`）
 - `FRONTEND_PORT`：前端容器对外端口，默认 `5173`
-- `FRONTEND_VITE_API_BASE_URL`：前端默认 API Base URL，推荐 `/`
+- `FRONTEND_VITE_API_BASE_URL`：前端默认 API Base URL（前后端分离，默认 `http://localhost:5121`）
 - `FRONTEND_VITE_MAX_UPLOAD_SIZE_BYTES`：前端上传前置校验阈值，需与后端上传限制保持一致
 
 ### 3.2 Local 模式
@@ -134,7 +134,7 @@ curl http://localhost:5121/api/v1/system/ping
 5. 访问前端管理面板：
 
 - `http://localhost:5173`
-- 前端容器会把 `/api`、`/mcp`、`/content`、`/openapi` 反向代理到后端服务
+- 前端通过显式配置的 API Base URL 直接访问后端（默认 `http://localhost:5121`）
 
 ### 6.2 S3-compatible 模式（Compose + MinIO 示例）
 
@@ -153,6 +153,11 @@ docker compose --profile s3 up --build minio minio-init nekohub-s3
 Compose 默认拉取镜像：
 
 - `ghcr.io/fengying1314/nekohub:latest`
+
+说明：
+
+- 当前 compose 默认是前后端分离部署，不内置前端反向代理后端。
+- 如需统一域名 / HTTPS / 网关策略，请在仓库外层自行配置反向代理（Nginx/Caddy/Traefik）。
 
 ## 7. API Key 配置与调用
 

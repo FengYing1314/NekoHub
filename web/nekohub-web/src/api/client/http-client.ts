@@ -18,7 +18,7 @@ export function setupHttpClientInterceptors(pinia: Pinia): void {
   httpClient.interceptors.request.use((config) => {
     const appConfigStore = useAppConfigStore(pinia);
 
-    config.baseURL = appConfigStore.apiBaseUrl || undefined;
+    config.baseURL = appConfigStore.apiBaseUrl;
 
     if (appConfigStore.apiKey) {
       config.headers = config.headers ?? {};

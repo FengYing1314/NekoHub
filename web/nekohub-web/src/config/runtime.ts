@@ -1,4 +1,5 @@
 const DEFAULT_MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_API_BASE_URL = 'http://localhost:5121';
 
 function parsePositiveInt(rawValue: string | undefined, fallback: number): number {
   if (!rawValue) {
@@ -15,11 +16,15 @@ function parsePositiveInt(rawValue: string | undefined, fallback: number): numbe
 
 function normalizeApiBaseUrl(rawValue: string | undefined): string {
   if (!rawValue) {
-    return '/';
+    return DEFAULT_API_BASE_URL;
   }
 
   const trimmed = rawValue.trim();
-  if (!trimmed || trimmed === '/') {
+  if (!trimmed) {
+    return DEFAULT_API_BASE_URL;
+  }
+
+  if (trimmed === '/') {
     return '/';
   }
 

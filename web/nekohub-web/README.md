@@ -19,5 +19,5 @@ npm run build
 
 ## 运行时约定
 
-- 默认 API Base URL 使用 `VITE_API_BASE_URL`，建议设置为 `/` 并由反向代理转发。
+- 默认 API Base URL 使用 `VITE_API_BASE_URL`（本地默认 `http://localhost:5121`）。
 - 默认上传大小前置校验由 `VITE_MAX_UPLOAD_SIZE_BYTES` 控制。

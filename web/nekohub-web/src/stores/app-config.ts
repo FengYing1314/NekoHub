@@ -18,7 +18,11 @@ interface AppConfigState {
 function normalizeBaseUrl(apiBaseUrl: string): string {
   const trimmed = apiBaseUrl.trim();
 
-  if (!trimmed || trimmed === '/') {
+  if (!trimmed) {
+    return DEFAULT_API_BASE_URL;
+  }
+
+  if (trimmed === '/') {
     return '/';
   }
 

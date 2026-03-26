@@ -32,11 +32,11 @@ const zhCN = {
   },
   settings: {
     title: '设置',
-    description: '配置 API Base URL 与 API Key，用于访问后端接口。API Base URL 设为 / 可走同域代理。',
+    description: '配置 API Base URL 与 API Key，用于访问后端接口。默认前后端分离部署。',
     apiBaseUrl: 'API Base URL',
     apiKey: 'API Key',
     saveSuccess: '配置已保存',
-    apiBaseUrlPlaceholder: '例如：/ 或 http://localhost:5121',
+    apiBaseUrlPlaceholder: '例如：http://localhost:5121',
     apiKeyPlaceholder: '请输入 API Key',
   },
   asset: {
