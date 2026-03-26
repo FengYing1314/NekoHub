@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
-import { NButton, NCard, NForm, NFormItem, NInput, useMessage } from 'naive-ui';
+import { computed, reactive, watch } from 'vue';
+import {
+  NButton,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
+  NSpace,
+  useMessage,
+} from 'naive-ui';
 import { useI18n } from 'vue-i18n';
-import PageHeader from '../../components/common/PageHeader.vue';
 import {
   useAppConfigStore,
   validateAppConfigPayload,
@@ -13,14 +20,40 @@ const message = useMessage();
 const appConfigStore = useAppConfigStore();
 
 const formModel = reactive({
-  apiBaseUrl: appConfigStore.apiBaseUrl,
-  apiKey: appConfigStore.apiKey,
+  apiBaseUrl: '',
+  apiKey: '',
 });
 
 const validationState = reactive({
   apiBaseUrlMissing: false,
   apiKeyMissing: false,
 });
+
+const showRequiredConfigModal = computed(() => !appConfigStore.isConfigured);
+
+function syncFormFromStore(): void {
+  formModel.apiBaseUrl = appConfigStore.apiBaseUrl;
+  formModel.apiKey = appConfigStore.apiKey;
+  validationState.apiBaseUrlMissing = false;
+  validationState.apiKeyMissing = false;
+}
+
+function validateForm(): boolean {
+  const result = validateAppConfigPayload({
+    apiBaseUrl: formModel.apiBaseUrl,
+    apiKey: formModel.apiKey,
+  });
+
+  validationState.apiBaseUrlMissing = result.apiBaseUrlMissing;
+  validationState.apiKeyMissing = result.apiKeyMissing;
+
+  if (result.apiBaseUrlMissing || result.apiKeyMissing) {
+    message.error(t('settings.validation.fixErrors'));
+    return false;
+  }
+
+  return true;
+}
 
 function handleApiBaseUrlInput(value: string): void {
   formModel.apiBaseUrl = value;
@@ -37,16 +70,7 @@ function handleApiKeyInput(value: string): void {
 }
 
 function handleSave(): void {
-  const result = validateAppConfigPayload({
-    apiBaseUrl: formModel.apiBaseUrl,
-    apiKey: formModel.apiKey,
-  });
-
-  validationState.apiBaseUrlMissing = result.apiBaseUrlMissing;
-  validationState.apiKeyMissing = result.apiKeyMissing;
-
-  if (result.apiBaseUrlMissing || result.apiKeyMissing) {
-    message.error(t('settings.validation.fixErrors'));
+  if (!validateForm()) {
     return;
   }
 
@@ -64,20 +88,36 @@ function handleSave(): void {
 }
 
 watch(
-  () => [appConfigStore.apiBaseUrl, appConfigStore.apiKey] as const,
-  ([apiBaseUrl, apiKey]) => {
-    formModel.apiBaseUrl = apiBaseUrl;
-    formModel.apiKey = apiKey;
+  () => showRequiredConfigModal.value,
+  (show) => {
+    if (show) {
+      syncFormFromStore();
+    }
   },
+  { immediate: true },
 );
 </script>
 
 <template>
-  <div>
-    <page-header :title="t('settings.title')" :description="t('settings.description')" />
+  <n-modal
+    :show="showRequiredConfigModal"
+    preset="card"
+    :mask-closable="false"
+    :close-on-esc="false"
+    :closable="false"
+    :auto-focus="true"
+    class="required-config-modal"
+  >
+    <template #header>
+      {{ t('settings.requiredModal.title') }}
+    </template>
 
-    <n-card class="settings-card">
-      <n-form label-placement="top" :model="formModel">
+    <n-space vertical :size="16">
+      <div class="required-config-modal__description">
+        {{ t('settings.requiredModal.description') }}
+      </div>
+
+      <n-form label-placement="top">
         <n-form-item
           :label="t('settings.apiBaseUrl')"
           :validation-status="validationState.apiBaseUrlMissing ? 'error' : undefined"
@@ -104,18 +144,28 @@ watch(
           />
         </n-form-item>
 
-        <div class="settings-actions">
-          <n-button type="primary" @click="handleSave">{{ t('common.save') }}</n-button>
-        </div>
+        <n-button type="primary" block @click="handleSave">{{ t('common.save') }}</n-button>
       </n-form>
-    </n-card>
-  </div>
+    </n-space>
+  </n-modal>
 </template>
 
 <style scoped>
+.required-config-modal {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+
+.required-config-modal__description {
+  font-size: 14px;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
 @media (max-width: 768px) {
-  .settings-actions :deep(.n-button) {
-    width: 100%;
+  .required-config-modal {
+    width: calc(100vw - 24px);
   }
 }
 </style>

@@ -10,6 +10,7 @@ import {
   NFormItem,
   NInput,
   NSpace,
+  NSwitch,
   useMessage,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
@@ -39,9 +40,15 @@ const fileValidationError = ref('');
 const formModel = reactive({
   description: '',
   altText: '',
+  isPublic: true,
 });
 
 const canSubmit = computed(() => !submitting.value && !!selectedFile.value && !fileValidationError.value);
+const visibilityHint = computed(() => (
+  formModel.isPublic
+    ? t('asset.upload.visibilityPublicHint')
+    : t('asset.upload.visibilityPrivateHint')
+));
 
 function isImageFile(file: File): boolean {
   const contentType = file.type.trim().toLowerCase();
@@ -104,6 +111,7 @@ async function handleSubmit(): Promise<void> {
       file: selectedFile.value,
       description: formModel.description,
       altText: formModel.altText,
+      isPublic: formModel.isPublic,
     });
 
     uploadedAssetId.value = uploaded.id;
@@ -203,7 +211,17 @@ function continueUpload(): void {
           />
         </n-form-item>
 
-        <n-space>
+        <n-form-item :label="t('asset.upload.visibilityLabel')">
+          <n-space vertical :size="8">
+            <n-switch v-model:value="formModel.isPublic" :disabled="submitting">
+              <template #checked>{{ t('asset.visibility.public') }}</template>
+              <template #unchecked>{{ t('asset.visibility.private') }}</template>
+            </n-switch>
+            <div class="form-hint">{{ visibilityHint }}</div>
+          </n-space>
+        </n-form-item>
+
+        <n-space wrap class="form-actions">
           <n-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="handleSubmit">
             {{ t('asset.upload.submit') }}
           </n-button>
@@ -213,7 +231,7 @@ function continueUpload(): void {
 
       <n-alert v-if="statusText" :type="statusType ?? 'info'" style="margin-top: 16px">
         <template #header>{{ statusText }}</template>
-        <n-space v-if="uploadedAssetId">
+        <n-space v-if="uploadedAssetId" wrap class="form-actions">
           <n-button type="primary" size="small" @click="goToDetail">{{ t('asset.upload.goToDetail') }}</n-button>
           <n-button size="small" @click="continueUpload">{{ t('asset.upload.continueUpload') }}</n-button>
         </n-space>
@@ -239,5 +257,24 @@ function continueUpload(): void {
 
 .section-card :deep(.n-card-header__main) {
   font-weight: 600;
+}
+
+.form-hint {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+@media (max-width: 768px) {
+  .form-actions {
+    width: 100%;
+  }
+
+  .form-actions :deep(.n-space-item) {
+    width: 100%;
+  }
+
+  .form-actions :deep(.n-space-item > *) {
+    width: 100%;
+  }
 }
 </style>

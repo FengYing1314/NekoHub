@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue';
-import type { DataTableColumns, SelectOption } from 'naive-ui';
+import { computed, h, onMounted, ref, watch } from 'vue';
+import type { DataTableColumns, DataTableRowKey, SelectOption } from 'naive-ui';
 import {
   NAlert,
   NButton,
   NCard,
   NDataTable,
   NEmpty,
+  NGrid,
+  NGridItem,
   NInput,
   NPagination,
   NPopconfirm,
   NResult,
   NSelect,
+  NSkeleton,
   NSpace,
+  useDialog,
   useMessage,
 } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
@@ -24,82 +28,161 @@ import {
 } from 'vue-router';
 import PageHeader from '../../components/common/PageHeader.vue';
 import AssetStatusTag from '../../components/assets/AssetStatusTag.vue';
-import { deleteAssetById, listAssets } from '../../api/assets/assets.api';
+import AssetVisibilityTag from '../../components/assets/AssetVisibilityTag.vue';
+import { batchDeleteAssets, deleteAsset, getUsageStats, listAssets } from '../../api/assets/assets.api';
 import { extractApiErrorMessage } from '../../api/client/error';
 import type {
   AssetListItemResponse,
-  AssetListSortBy,
-  AssetListSortDirection,
+  AssetListOrderBy,
+  AssetListOrderDirection,
+  AssetStatus,
+  AssetUsageStatsResponse,
   ListAssetsInput,
 } from '../../types/assets';
 import { formatDateTime, formatFileSize } from '../../utils/format';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
-const DEFAULT_SORT_BY: AssetListSortBy = 'createdAt';
-const DEFAULT_SORT_DIRECTION: AssetListSortDirection = 'desc';
+const DEFAULT_ORDER_BY: AssetListOrderBy = 'createdAt';
+const DEFAULT_ORDER_DIRECTION: AssetListOrderDirection = 'desc';
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-const ASSET_QUERY_KEYS = ['page', 'pageSize', 'keyword', 'contentType', 'sortBy', 'sortDirection'] as const;
+const LIST_TABLE_SCROLL_X = 1120;
+const ASSET_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'query',
+  'keyword',
+  'contentType',
+  'status',
+  'orderBy',
+  'orderDirection',
+  'sortBy',
+  'sortDirection',
+] as const;
 
 type SortOptionValue = 'createdAt:desc' | 'createdAt:asc' | 'size:desc' | 'size:asc';
 type ContentTypeFilterValue = 'all' | 'image' | 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+type StatusFilterValue = 'all' | AssetStatus;
 
 interface AssetListRouteState {
   page: number;
   pageSize: number;
-  keyword: string;
+  query: string;
   contentType: ContentTypeFilterValue;
-  sortBy: AssetListSortBy;
-  sortDirection: AssetListSortDirection;
+  status: StatusFilterValue;
+  orderBy: AssetListOrderBy;
+  orderDirection: AssetListOrderDirection;
 }
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
+const dialog = useDialog();
 const message = useMessage();
 
 const loading = ref(false);
 const deletingId = ref<string | null>(null);
+const batchDeleting = ref(false);
 const loadErrorMessage = ref('');
+const statsLoading = ref(false);
+const statsLoadErrorMessage = ref('');
 const invalidQueryFallback = ref(false);
 const restoredFromQuery = ref(false);
 const isFirstRouteSync = ref(true);
 
 const assets = ref<AssetListItemResponse[]>([]);
+const usageStats = ref<AssetUsageStatsResponse | null>(null);
 const totalFromServer = ref(0);
+const checkedRowKeys = ref<DataTableRowKey[]>([]);
 
 const page = ref(DEFAULT_PAGE);
 const pageSize = ref(DEFAULT_PAGE_SIZE);
-const keyword = ref('');
-const keywordDraft = ref('');
+const queryText = ref('');
+const queryDraft = ref('');
 const contentTypeFilter = ref<ContentTypeFilterValue>('all');
-const sortBy = ref<AssetListSortBy>(DEFAULT_SORT_BY);
-const sortDirection = ref<AssetListSortDirection>(DEFAULT_SORT_DIRECTION);
+const statusFilter = ref<StatusFilterValue>('all');
+const orderBy = ref<AssetListOrderBy>(DEFAULT_ORDER_BY);
+const orderDirection = ref<AssetListOrderDirection>(DEFAULT_ORDER_DIRECTION);
 
 const isSyncingStateFromRoute = ref(false);
 
 const hasLoadError = computed(() => loadErrorMessage.value.length > 0);
 const isEmpty = computed(() => !loading.value && !hasLoadError.value && assets.value.length === 0);
+const hasStatsError = computed(() => statsLoadErrorMessage.value.length > 0);
+const selectedCount = computed(() => checkedRowKeys.value.length);
+const hasSelection = computed(() => selectedCount.value > 0);
+const selectedAssetIds = computed(() => checkedRowKeys.value.map((key) => String(key)));
+const topContentType = computed(() => usageStats.value?.contentTypeBreakdown[0] ?? null);
+
+const usageSummaryItems = computed(() => {
+  const stats = usageStats.value;
+  if (!stats) {
+    return [];
+  }
+
+  return [
+    {
+      key: 'totalAssets',
+      label: t('asset.list.stats.totalAssets'),
+      value: formatCount(stats.totalAssets),
+      meta: '',
+    },
+    {
+      key: 'totalBytes',
+      label: t('asset.list.stats.totalBytes'),
+      value: formatFileSize(stats.totalBytes),
+      meta: '',
+    },
+    {
+      key: 'totalDerivatives',
+      label: t('asset.list.stats.totalDerivatives'),
+      value: formatCount(stats.totalDerivatives),
+      meta: '',
+    },
+    {
+      key: 'topContentType',
+      label: t('asset.list.stats.topContentType'),
+      value: topContentType.value?.contentType ?? t('common.noData'),
+      meta: topContentType.value
+        ? t('asset.list.stats.topContentTypeMeta', {
+          count: formatCount(topContentType.value.count),
+          size: formatFileSize(topContentType.value.totalBytes),
+        })
+        : t('asset.list.stats.topContentTypeEmpty'),
+    },
+    {
+      key: 'mostActiveSkill',
+      label: t('asset.list.stats.mostActiveSkill'),
+      value: stats.mostActiveSkill?.skillName ?? t('common.noData'),
+      meta: stats.mostActiveSkill
+        ? t('asset.list.stats.activeSkillMeta', {
+          count: formatCount(stats.mostActiveSkill.runCount),
+        })
+        : t('asset.list.stats.activeSkillEmpty'),
+    },
+  ];
+});
 
 const hasNonDefaultQueryState = computed(() => {
   return page.value !== DEFAULT_PAGE
     || pageSize.value !== DEFAULT_PAGE_SIZE
-    || keyword.value.length > 0
+    || queryText.value.length > 0
     || contentTypeFilter.value !== 'all'
-    || sortBy.value !== DEFAULT_SORT_BY
-    || sortDirection.value !== DEFAULT_SORT_DIRECTION;
+    || statusFilter.value !== 'all'
+    || orderBy.value !== DEFAULT_ORDER_BY
+    || orderDirection.value !== DEFAULT_ORDER_DIRECTION;
 });
 
 const showQueryStateHint = computed(() => hasNonDefaultQueryState.value);
 
 const sortOptionValue = computed<SortOptionValue>({
   get() {
-    return `${sortBy.value}:${sortDirection.value}` as SortOptionValue;
+    return `${orderBy.value}:${orderDirection.value}` as SortOptionValue;
   },
   set(value) {
-    const [nextSortBy, nextSortDirection] = value.split(':') as [AssetListSortBy, AssetListSortDirection];
-    sortBy.value = nextSortBy;
-    sortDirection.value = nextSortDirection;
+    const [nextOrderBy, nextOrderDirection] = value.split(':') as [AssetListOrderBy, AssetListOrderDirection];
+    orderBy.value = nextOrderBy;
+    orderDirection.value = nextOrderDirection;
   },
 });
 
@@ -118,6 +201,12 @@ const sortOptions = computed<SelectOption[]>(() => [
   { label: t('asset.list.sortSizeDesc'), value: 'size:desc' },
   { label: t('asset.list.sortSizeAsc'), value: 'size:asc' },
 ]);
+
+const countFormatter = new Intl.NumberFormat('zh-CN');
+
+function formatCount(value: number): string {
+  return countFormatter.format(value);
+}
 
 function getQueryValue(query: LocationQuery, key: string): string | undefined {
   const value = query[key];
@@ -165,9 +254,30 @@ function parseContentType(rawValue: string | undefined): { value: ContentTypeFil
   return { value: 'all', invalid: true };
 }
 
-function parseSortBy(rawValue: string | undefined): { value: AssetListSortBy; invalid: boolean } {
+function parseStatus(rawValue: string | undefined): { value: StatusFilterValue; invalid: boolean } {
   if (!rawValue) {
-    return { value: DEFAULT_SORT_BY, invalid: false };
+    return { value: 'all', invalid: false };
+  }
+
+  const normalized = rawValue.trim().toLowerCase();
+  if (normalized === 'all') {
+    return { value: 'all', invalid: false };
+  }
+
+  if (normalized === 'processing') {
+    return { value: 'pending', invalid: false };
+  }
+
+  if (normalized === 'pending' || normalized === 'ready' || normalized === 'deleted' || normalized === 'failed') {
+    return { value: normalized as AssetStatus, invalid: false };
+  }
+
+  return { value: 'all', invalid: true };
+}
+
+function parseOrderBy(rawValue: string | undefined): { value: AssetListOrderBy; invalid: boolean } {
+  if (!rawValue) {
+    return { value: DEFAULT_ORDER_BY, invalid: false };
   }
 
   if (rawValue === 'createdAtUtc') {
@@ -179,41 +289,52 @@ function parseSortBy(rawValue: string | undefined): { value: AssetListSortBy; in
     return { value: rawValue, invalid: false };
   }
 
-  return { value: DEFAULT_SORT_BY, invalid: true };
+  return { value: DEFAULT_ORDER_BY, invalid: true };
 }
 
-function parseSortDirection(rawValue: string | undefined): { value: AssetListSortDirection; invalid: boolean } {
+function parseOrderDirection(rawValue: string | undefined): { value: AssetListOrderDirection; invalid: boolean } {
   if (!rawValue) {
-    return { value: DEFAULT_SORT_DIRECTION, invalid: false };
+    return { value: DEFAULT_ORDER_DIRECTION, invalid: false };
   }
 
   if (rawValue === 'asc' || rawValue === 'desc') {
     return { value: rawValue, invalid: false };
   }
 
-  return { value: DEFAULT_SORT_DIRECTION, invalid: true };
+  return { value: DEFAULT_ORDER_DIRECTION, invalid: true };
 }
 
 function parseRouteState(query: LocationQuery): { state: AssetListRouteState; invalid: boolean; restored: boolean } {
   const parsedPage = parsePositiveInt(getQueryValue(query, 'page'), DEFAULT_PAGE);
   const parsedPageSize = parsePositiveInt(getQueryValue(query, 'pageSize'), DEFAULT_PAGE_SIZE);
   const parsedContentType = parseContentType(getQueryValue(query, 'contentType'));
-  const parsedSortBy = parseSortBy(getQueryValue(query, 'sortBy'));
-  const parsedSortDirection = parseSortDirection(getQueryValue(query, 'sortDirection'));
+  const parsedStatus = parseStatus(getQueryValue(query, 'status'));
+  const parsedOrderBy = parseOrderBy(getQueryValue(query, 'orderBy') ?? getQueryValue(query, 'sortBy'));
+  const parsedOrderDirection = parseOrderDirection(
+    getQueryValue(query, 'orderDirection') ?? getQueryValue(query, 'sortDirection'),
+  );
 
-  const keywordFromQuery = getQueryValue(query, 'keyword')?.trim() ?? '';
+  const queryFromRoute = getQueryValue(query, 'query')?.trim()
+    ?? getQueryValue(query, 'keyword')?.trim()
+    ?? '';
   const hasQuery = ASSET_QUERY_KEYS.some((key) => query[key] !== undefined);
 
   return {
     state: {
       page: parsedPage.value,
       pageSize: parsedPageSize.value,
-      keyword: keywordFromQuery,
+      query: queryFromRoute,
       contentType: parsedContentType.value,
-      sortBy: parsedSortBy.value,
-      sortDirection: parsedSortDirection.value,
+      status: parsedStatus.value,
+      orderBy: parsedOrderBy.value,
+      orderDirection: parsedOrderDirection.value,
     },
-    invalid: parsedPage.invalid || parsedPageSize.invalid || parsedContentType.invalid || parsedSortBy.invalid || parsedSortDirection.invalid,
+    invalid: parsedPage.invalid
+      || parsedPageSize.invalid
+      || parsedContentType.invalid
+      || parsedStatus.invalid
+      || parsedOrderBy.invalid
+      || parsedOrderDirection.invalid,
     restored: hasQuery,
   };
 }
@@ -221,11 +342,12 @@ function parseRouteState(query: LocationQuery): { state: AssetListRouteState; in
 function applyRouteState(state: AssetListRouteState): void {
   page.value = state.page;
   pageSize.value = state.pageSize;
-  keyword.value = state.keyword;
-  keywordDraft.value = state.keyword;
+  queryText.value = state.query;
+  queryDraft.value = state.query;
   contentTypeFilter.value = state.contentType;
-  sortBy.value = state.sortBy;
-  sortDirection.value = state.sortDirection;
+  statusFilter.value = state.status;
+  orderBy.value = state.orderBy;
+  orderDirection.value = state.orderDirection;
 }
 
 function normalizeContentTypeForQuery(value: ContentTypeFilterValue): string | undefined {
@@ -244,10 +366,11 @@ function buildRouteQueryFromState(state: AssetListRouteState): LocationQueryRaw 
   return {
     page: String(state.page),
     pageSize: String(state.pageSize),
-    sortBy: state.sortBy,
-    sortDirection: state.sortDirection,
-    keyword: state.keyword || undefined,
+    orderBy: state.orderBy,
+    orderDirection: state.orderDirection,
+    query: state.query || undefined,
     contentType: normalizeContentTypeForQuery(state.contentType),
+    status: state.status === 'all' ? undefined : state.status,
   };
 }
 
@@ -291,10 +414,11 @@ async function syncRouteQuery(): Promise<void> {
   const nextState: AssetListRouteState = {
     page: page.value,
     pageSize: pageSize.value,
-    keyword: keyword.value,
+    query: queryText.value,
     contentType: contentTypeFilter.value,
-    sortBy: sortBy.value,
-    sortDirection: sortDirection.value,
+    status: statusFilter.value,
+    orderBy: orderBy.value,
+    orderDirection: orderDirection.value,
   };
 
   const nextQuery = buildRouteQueryFromState(nextState);
@@ -309,6 +433,10 @@ async function syncRouteQuery(): Promise<void> {
 }
 
 const columns = computed<DataTableColumns<AssetListItemResponse>>(() => [
+  {
+    type: 'selection',
+    width: 48,
+  },
   {
     title: t('asset.list.columns.fileName'),
     key: 'originalFileName',
@@ -340,6 +468,12 @@ const columns = computed<DataTableColumns<AssetListItemResponse>>(() => [
     key: 'status',
     width: 120,
     render: (row) => h(AssetStatusTag, { status: row.status }),
+  },
+  {
+    title: t('asset.list.columns.visibility'),
+    key: 'isPublic',
+    width: 110,
+    render: (row) => h(AssetVisibilityTag, { isPublic: row.isPublic }),
   },
   {
     title: t('asset.list.columns.createdAt'),
@@ -386,6 +520,7 @@ const columns = computed<DataTableColumns<AssetListItemResponse>>(() => [
                       quaternary: true,
                       type: 'error',
                       loading: deletingId.value === row.id,
+                      disabled: batchDeleting.value,
                     },
                     { default: () => t('common.delete') },
                   ),
@@ -402,10 +537,11 @@ function buildListAssetsInput(): ListAssetsInput {
   return {
     page: page.value,
     pageSize: pageSize.value,
-    keyword: keyword.value || undefined,
+    query: queryText.value || undefined,
     contentType: normalizeContentTypeForQuery(contentTypeFilter.value),
-    sortBy: sortBy.value,
-    sortDirection: sortDirection.value,
+    status: statusFilter.value === 'all' ? undefined : statusFilter.value,
+    orderBy: orderBy.value,
+    orderDirection: orderDirection.value,
   };
 }
 
@@ -420,6 +556,7 @@ async function fetchAssets(): Promise<void> {
     totalFromServer.value = paged.total;
     page.value = paged.page;
     pageSize.value = paged.pageSize;
+    syncSelectionWithCurrentPage();
   } catch (error) {
     loadErrorMessage.value = extractApiErrorMessage(error);
     message.error(`${t('asset.list.loadFailed')}: ${loadErrorMessage.value}`);
@@ -428,23 +565,110 @@ async function fetchAssets(): Promise<void> {
   }
 }
 
+async function fetchUsageStats(): Promise<void> {
+  statsLoading.value = true;
+  statsLoadErrorMessage.value = '';
+
+  try {
+    usageStats.value = await getUsageStats();
+  } catch (error) {
+    statsLoadErrorMessage.value = extractApiErrorMessage(error);
+  } finally {
+    statsLoading.value = false;
+  }
+}
+
+function syncSelectionWithCurrentPage(): void {
+  const visibleIds = new Set(assets.value.map((asset) => asset.id));
+  checkedRowKeys.value = checkedRowKeys.value.filter((key) => visibleIds.has(String(key)));
+}
+
+function clearSelection(): void {
+  checkedRowKeys.value = [];
+}
+
+function getPageAfterDelete(deletedCount: number): number {
+  const nextTotal = Math.max(totalFromServer.value - deletedCount, 0);
+  const maxPage = Math.max(DEFAULT_PAGE, Math.ceil(nextTotal / pageSize.value));
+
+  return Math.min(page.value, maxPage);
+}
+
+async function refreshAfterDelete(deletedCount: number): Promise<void> {
+  const nextPage = getPageAfterDelete(deletedCount);
+
+  if (page.value !== nextPage) {
+    page.value = nextPage;
+  }
+
+  await Promise.all([fetchAssets(), fetchUsageStats()]);
+}
+
 async function handleDelete(id: string): Promise<void> {
   deletingId.value = id;
 
   try {
-    await deleteAssetById(id);
+    await deleteAsset(id);
     message.success(t('common.deleteSuccess'));
-
-    if (assets.value.length === 1 && page.value > 1) {
-      page.value -= 1;
-    }
-
-    await fetchAssets();
+    await refreshAfterDelete(1);
   } catch (error) {
     message.error(`${t('common.deleteFailed')}: ${extractApiErrorMessage(error)}`);
   } finally {
     deletingId.value = null;
   }
+}
+
+function handleCheckedRowKeysChange(nextKeys: DataTableRowKey[]): void {
+  checkedRowKeys.value = nextKeys;
+}
+
+async function executeBatchDelete(assetIds: string[]): Promise<void> {
+  if (assetIds.length === 0 || batchDeleting.value) {
+    return;
+  }
+
+  batchDeleting.value = true;
+
+  try {
+    const result = await batchDeleteAssets(assetIds);
+    clearSelection();
+
+    if (result.notFoundIds.length > 0) {
+      message.warning(
+        t('asset.list.batch.deletePartialSuccess', {
+          deletedCount: result.deletedCount,
+          notFoundCount: result.notFoundIds.length,
+        }),
+      );
+    } else {
+      message.success(
+        t('asset.list.batch.deleteSuccess', {
+          count: result.deletedCount,
+        }),
+      );
+    }
+
+    await refreshAfterDelete(result.deletedCount);
+  } catch (error) {
+    message.error(`${t('asset.list.batch.deleteFailed')}: ${extractApiErrorMessage(error)}`);
+  } finally {
+    batchDeleting.value = false;
+  }
+}
+
+function handleBatchDelete(): void {
+  const assetIds = [...selectedAssetIds.value];
+  if (assetIds.length === 0 || batchDeleting.value) {
+    return;
+  }
+
+  dialog.warning({
+    title: t('asset.list.batch.deleteAction'),
+    content: t('asset.list.batch.confirmDelete', { count: assetIds.length }),
+    positiveText: t('asset.list.batch.deleteAction'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => executeBatchDelete(assetIds),
+  });
 }
 
 function handlePageChange(nextPage: number): void {
@@ -456,8 +680,8 @@ function handlePageSizeChange(nextPageSize: number): void {
   page.value = DEFAULT_PAGE;
 }
 
-function applyKeywordSearch(): void {
-  keyword.value = keywordDraft.value.trim();
+function applyQuerySearch(): void {
+  queryText.value = queryDraft.value.trim();
   page.value = DEFAULT_PAGE;
 }
 
@@ -472,16 +696,17 @@ function handleSortOptionChange(nextValue: string): void {
 }
 
 function resetFilters(): void {
-  keywordDraft.value = '';
-  keyword.value = '';
+  queryDraft.value = '';
+  queryText.value = '';
   contentTypeFilter.value = 'all';
-  sortBy.value = DEFAULT_SORT_BY;
-  sortDirection.value = DEFAULT_SORT_DIRECTION;
+  statusFilter.value = 'all';
+  orderBy.value = DEFAULT_ORDER_BY;
+  orderDirection.value = DEFAULT_ORDER_DIRECTION;
   page.value = DEFAULT_PAGE;
 }
 
 async function handleRefresh(): Promise<void> {
-  await fetchAssets();
+  await Promise.all([fetchAssets(), fetchUsageStats()]);
 }
 
 function goToUpload(): void {
@@ -490,6 +715,10 @@ function goToUpload(): void {
     query: route.query,
   });
 }
+
+onMounted(() => {
+  void fetchUsageStats();
+});
 
 watch(
   () => route.query,
@@ -513,7 +742,7 @@ watch(
 );
 
 watch(
-  [page, pageSize, keyword, contentTypeFilter, sortBy, sortDirection],
+  [page, pageSize, queryText, contentTypeFilter, statusFilter, orderBy, orderDirection],
   () => {
     if (isSyncingStateFromRoute.value) {
       return;
@@ -532,22 +761,72 @@ watch(
       </template>
     </page-header>
 
+    <n-card class="section-card stats-card" :title="t('asset.list.stats.title')">
+      <template #header-extra>
+        <n-button text :loading="statsLoading" @click="fetchUsageStats">
+          {{ t('common.refresh') }}
+        </n-button>
+      </template>
+
+      <n-space vertical :size="12">
+        <n-alert v-if="hasStatsError" type="warning" :show-icon="false">
+          <div class="stats-alert">
+            <span>{{ t('asset.list.stats.loadFailed') }}: {{ statsLoadErrorMessage }}</span>
+            <n-button text size="small" :loading="statsLoading" @click="fetchUsageStats">
+              {{ t('common.retry') }}
+            </n-button>
+          </div>
+        </n-alert>
+
+        <n-grid
+          v-if="statsLoading && !usageStats"
+          cols="1 s:2 m:3 xl:5"
+          responsive="screen"
+          :x-gap="12"
+          :y-gap="12"
+        >
+          <n-grid-item v-for="index in 5" :key="index">
+            <div class="stats-tile">
+              <n-skeleton text style="width: 56px; margin-bottom: 10px" />
+              <n-skeleton text :repeat="2" />
+            </div>
+          </n-grid-item>
+        </n-grid>
+
+        <n-grid
+          v-else-if="usageStats"
+          cols="1 s:2 m:3 xl:5"
+          responsive="screen"
+          :x-gap="12"
+          :y-gap="12"
+        >
+          <n-grid-item v-for="item in usageSummaryItems" :key="item.key">
+            <div class="stats-tile">
+              <div class="stats-label">{{ item.label }}</div>
+              <div class="stats-value">{{ item.value }}</div>
+              <div v-if="item.meta" class="stats-meta">{{ item.meta }}</div>
+            </div>
+          </n-grid-item>
+        </n-grid>
+      </n-space>
+    </n-card>
+
     <n-card class="section-card">
       <div class="toolbar">
-        <n-space wrap>
+        <n-space wrap class="toolbar-space">
           <n-input
-            v-model:value="keywordDraft"
+            v-model:value="queryDraft"
             clearable
             :placeholder="t('asset.list.searchPlaceholder')"
-            style="width: 260px"
-            @keyup.enter="applyKeywordSearch"
+            class="toolbar-control toolbar-control--search"
+            @keyup.enter="applyQuerySearch"
           />
 
           <n-select
             :value="contentTypeFilter"
             :placeholder="t('asset.list.filterType')"
             :options="contentTypeOptions"
-            style="width: 180px"
+            class="toolbar-control"
             @update:value="handleContentTypeChange"
           />
 
@@ -555,16 +834,20 @@ watch(
             :value="sortOptionValue"
             :placeholder="t('asset.list.sortBy')"
             :options="sortOptions"
-            style="width: 210px"
+            class="toolbar-control toolbar-control--sort"
             @update:value="handleSortOptionChange"
           />
 
-          <n-button :loading="loading" type="primary" ghost @click="applyKeywordSearch">
+          <n-button class="toolbar-button" :loading="loading" type="primary" ghost @click="applyQuerySearch">
             {{ t('asset.list.searchAction') }}
           </n-button>
 
-          <n-button :loading="loading" @click="handleRefresh">{{ t('asset.list.refresh') }}</n-button>
-          <n-button :disabled="loading" @click="resetFilters">{{ t('asset.list.resetFilters') }}</n-button>
+          <n-button class="toolbar-button" :loading="loading" @click="handleRefresh">
+            {{ t('asset.list.refresh') }}
+          </n-button>
+          <n-button class="toolbar-button" :disabled="loading" @click="resetFilters">
+            {{ t('asset.list.resetFilters') }}
+          </n-button>
         </n-space>
       </div>
 
@@ -579,6 +862,20 @@ watch(
           {{ t('asset.list.invalidQueryFallback') }}
         </n-alert>
       </n-space>
+
+      <div v-if="hasSelection" class="batch-action-bar">
+        <div class="batch-action-summary">
+          {{ t('asset.list.batch.selectedCount', { count: selectedCount }) }}
+        </div>
+        <n-space :size="8">
+          <n-button quaternary :disabled="batchDeleting" @click="clearSelection">
+            {{ t('asset.list.batch.clearSelection') }}
+          </n-button>
+          <n-button type="error" :loading="batchDeleting" @click="handleBatchDelete">
+            {{ t('asset.list.batch.deleteAction') }}
+          </n-button>
+        </n-space>
+      </div>
 
       <n-result
         v-if="hasLoadError"
@@ -602,14 +899,18 @@ watch(
         </template>
       </n-empty>
 
-      <n-data-table
-        v-else
-        :loading="loading"
-        :columns="columns"
-        :data="assets"
-        :row-key="(row) => row.id"
-        remote
-      />
+      <div v-else class="table-wrapper">
+        <n-data-table
+          :loading="loading"
+          :columns="columns"
+          :data="assets"
+          :row-key="(row) => row.id"
+          :checked-row-keys="checkedRowKeys"
+          :scroll-x="LIST_TABLE_SCROLL_X"
+          remote
+          @update:checked-row-keys="handleCheckedRowKeysChange"
+        />
+      </div>
 
       <div class="pagination-wrapper">
         <div class="pagination-label">{{ t('asset.list.pagination') }}</div>
@@ -629,8 +930,88 @@ watch(
 </template>
 
 <style scoped>
+.stats-card {
+  margin-bottom: 16px;
+}
+
+.stats-alert {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stats-tile {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  min-height: 112px;
+}
+
+.stats-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.stats-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.stats-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
 .toolbar {
   margin-bottom: 16px;
+}
+
+.toolbar-space {
+  width: 100%;
+}
+
+.toolbar-control {
+  width: 180px;
+}
+
+.toolbar-control--search {
+  width: 260px;
+}
+
+.toolbar-control--sort {
+  width: 210px;
+}
+
+.batch-action-bar {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid #f3d6a0;
+  border-radius: 12px;
+  background: #fff8eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.batch-action-summary {
+  font-size: 14px;
+  font-weight: 600;
+  color: #8a5a00;
+}
+
+.table-wrapper {
+  overflow-x: auto;
 }
 
 .pagination-wrapper {
@@ -651,5 +1032,31 @@ watch(
 
 .section-card :deep(.n-card-header__main) {
   font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .stats-tile {
+    min-height: unset;
+  }
+
+  .stats-value {
+    font-size: 20px;
+  }
+
+  .toolbar :deep(.n-space-item) {
+    width: 100%;
+  }
+
+  .toolbar :deep(.n-space-item > *) {
+    width: 100%;
+  }
+
+  .batch-action-bar {
+    padding: 12px;
+  }
+
+  .pagination-wrapper {
+    align-items: flex-start;
+  }
 }
 </style>

@@ -5,6 +5,16 @@ import { runtimeConfig } from '../config/runtime';
 const APP_CONFIG_STORAGE_KEY = 'nekohub.app-config';
 export const DEFAULT_API_BASE_URL = runtimeConfig.apiBaseUrl;
 
+export interface AppConfigPayload {
+  apiBaseUrl: string;
+  apiKey: string;
+}
+
+export interface AppConfigValidationResult {
+  apiBaseUrlMissing: boolean;
+  apiKeyMissing: boolean;
+}
+
 interface AppConfigPersistedState {
   apiBaseUrl: string;
   apiKey: string;
@@ -13,6 +23,10 @@ interface AppConfigPersistedState {
 interface AppConfigState {
   apiBaseUrl: string;
   apiKey: string;
+}
+
+function hasConfiguredValue(value: string): boolean {
+  return value.trim().length > 0;
 }
 
 function normalizeBaseUrl(apiBaseUrl: string): string {
@@ -41,10 +55,21 @@ function readInitialState(): AppConfigState {
   };
 }
 
+export function validateAppConfigPayload(payload: AppConfigPayload): AppConfigValidationResult {
+  return {
+    apiBaseUrlMissing: !hasConfiguredValue(payload.apiBaseUrl),
+    apiKeyMissing: !hasConfiguredValue(payload.apiKey),
+  };
+}
+
 export const useAppConfigStore = defineStore('appConfig', {
   state: (): AppConfigState => readInitialState(),
   getters: {
+    isApiBaseUrlConfigured: (state) => hasConfiguredValue(state.apiBaseUrl),
     isApiKeyConfigured: (state) => state.apiKey.length > 0,
+    isConfigured(): boolean {
+      return this.isApiBaseUrlConfigured && this.isApiKeyConfigured;
+    },
   },
   actions: {
     hydrate() {
@@ -52,7 +77,7 @@ export const useAppConfigStore = defineStore('appConfig', {
       this.apiBaseUrl = nextState.apiBaseUrl;
       this.apiKey = nextState.apiKey;
     },
-    setConfig(payload: { apiBaseUrl: string; apiKey: string }) {
+    setConfig(payload: AppConfigPayload) {
       this.apiBaseUrl = normalizeBaseUrl(payload.apiBaseUrl);
       this.apiKey = payload.apiKey.trim();
       this.persist();

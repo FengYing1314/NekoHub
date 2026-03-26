@@ -47,6 +47,12 @@ defineProps<Props>();
 
 .page-header__actions {
   flex-shrink: 0;
+  min-width: 0;
+}
+
+.page-header__actions :deep(.n-space) {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 @media (max-width: 768px) {
@@ -57,6 +63,19 @@ defineProps<Props>();
 
   .page-header__actions {
     width: 100%;
+  }
+
+  .page-header__title {
+    font-size: 22px;
+  }
+
+  .page-header__actions :deep(.n-space) {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .page-header__actions :deep(.n-space-item) {
+    max-width: 100%;
   }
 }
 </style>

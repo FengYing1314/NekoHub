@@ -1,3 +1,5 @@
+import type { JsonObject } from './api';
+
 export type AssetStatus = 'pending' | 'ready' | 'deleted' | 'failed';
 export type AssetDisplayStatus = AssetStatus | 'unknown';
 export type AssetStatusLike = AssetStatus | string | number | null | undefined;
@@ -34,7 +36,8 @@ export interface AssetListItemResponse {
   id: string;
   type: string;
   status: AssetStatus;
-  originalFileName: string;
+  isPublic: boolean;
+  originalFileName: string | null;
   contentType: string;
   size: number;
   width: number | null;
@@ -96,7 +99,8 @@ export interface AssetResponse {
   id: string;
   type: string;
   status: AssetStatus;
-  originalFileName: string;
+  isPublic: boolean;
+  originalFileName: string | null;
   storedFileName: string | null;
   contentType: string;
   extension: string;
@@ -122,24 +126,113 @@ export interface DeleteAssetResponse {
   deletedAtUtc: string;
 }
 
-export type AssetListSortBy = 'createdAt' | 'size';
-export type AssetListSortDirection = 'asc' | 'desc';
+export type AssetListOrderBy = 'createdAt' | 'size';
+export type AssetListOrderDirection = 'asc' | 'desc';
+
+export type AssetPatchFieldValue = string | null | undefined;
 
 export interface AssetListQueryParams {
   page: number;
   pageSize: number;
-  keyword?: string;
+  query?: string;
   contentType?: string;
-  sortBy?: AssetListSortBy;
-  sortDirection?: AssetListSortDirection;
+  status?: AssetStatus;
+  orderBy?: AssetListOrderBy;
+  orderDirection?: AssetListOrderDirection;
 }
 
 export type ListAssetsInput = AssetListQueryParams;
+
+export interface PatchAssetInput {
+  description?: AssetPatchFieldValue;
+  altText?: AssetPatchFieldValue;
+  originalFileName?: AssetPatchFieldValue;
+  isPublic?: boolean;
+}
 
 export interface UploadAssetInput {
   file: File;
   description?: string;
   altText?: string;
+  isPublic?: boolean;
+}
+
+export type BatchDeleteAssetsInput = string[];
+
+export interface BatchDeleteAssetsResponse {
+  requestedCount: number;
+  deletedCount: number;
+  notFoundIds: string[];
+}
+
+export interface AssetContentTypeBreakdownResponse {
+  contentType: string;
+  count: number;
+  totalBytes: number;
+}
+
+export interface AssetSkillUsageSummaryResponse {
+  skillName: string;
+  runCount: number;
+}
+
+export interface AssetSkillSummaryResponse {
+  skillName: string;
+  description: string;
+  steps: string[];
+}
+
+export interface ListSkillsResponse {
+  skills: AssetSkillSummaryResponse[];
+}
+
+export interface AssetUsageStatsResponse {
+  totalAssets: number;
+  totalBytes: number;
+  totalDerivatives: number;
+  contentTypeBreakdown: AssetContentTypeBreakdownResponse[];
+  mostActiveSkill: AssetSkillUsageSummaryResponse | null;
+}
+
+export interface RunAssetSkillStepResponse {
+  name: string;
+  succeeded: boolean;
+  errorMessage: string | null;
+}
+
+export interface RunAssetSkillAssetResponse {
+  id: string;
+  type: string;
+  status: AssetStatus;
+  isPublic: boolean;
+  originalFileName: string | null;
+  contentType: string;
+  extension: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  checksumSha256: string | null;
+  publicUrl: string | null;
+  description: string | null;
+  altText: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  derivatives: AssetDerivativeSummaryResponse[];
+  structuredResults: AssetStructuredResultSummaryResponse[];
+  latestExecutionSummary: AssetLatestExecutionSummaryResponse | null;
+}
+
+export interface RunAssetSkillResponse {
+  succeeded: boolean;
+  skillName: string;
+  steps: RunAssetSkillStepResponse[];
+  asset: RunAssetSkillAssetResponse;
+}
+
+export interface RunAssetSkillInput {
+  assetId: string;
+  skillName: string;
+  parameters?: JsonObject;
 }
 
 export interface ParsedStructuredResult {
