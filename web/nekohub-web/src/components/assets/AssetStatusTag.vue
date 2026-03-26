@@ -2,21 +2,22 @@
 import { computed } from 'vue';
 import { NTag } from 'naive-ui';
 import { useI18n } from 'vue-i18n';
+import { normalizeAssetStatus, type AssetStatusLike } from '../../types/assets';
 
 interface Props {
-  status: string;
+  status: AssetStatusLike;
 }
 
 const props = defineProps<Props>();
 const { t, te } = useI18n();
 
-const normalizedStatus = computed(() => props.status.toLowerCase());
+const normalizedStatus = computed(() => normalizeAssetStatus(props.status));
 
 const tagType = computed(() => {
   switch (normalizedStatus.value) {
     case 'ready':
       return 'success';
-    case 'processing':
+    case 'pending':
       return 'warning';
     case 'failed':
       return 'error';
@@ -29,7 +30,19 @@ const tagType = computed(() => {
 
 const label = computed(() => {
   const key = `asset.status.${normalizedStatus.value}`;
-  return te(key) ? t(key) : props.status;
+  if (te(key)) {
+    return t(key);
+  }
+
+  if (typeof props.status === 'string' && props.status.trim().length > 0) {
+    return props.status;
+  }
+
+  if (typeof props.status === 'number') {
+    return String(props.status);
+  }
+
+  return t('asset.status.unknown');
 });
 </script>
 

@@ -46,6 +46,7 @@ const zhCN = {
       failed: '失败',
       deleted: '已删除',
       pending: '待处理',
+      unknown: '未知',
     },
     list: {
       title: '资产列表',

@@ -1,7 +1,39 @@
+export type AssetStatus = 'pending' | 'ready' | 'deleted' | 'failed';
+export type AssetDisplayStatus = AssetStatus | 'unknown';
+export type AssetStatusLike = AssetStatus | string | number | null | undefined;
+
+const ASSET_STATUS_NUMBER_MAP: Record<number, AssetStatus> = {
+  1: 'pending',
+  2: 'ready',
+  3: 'deleted',
+  4: 'failed',
+};
+
+const ASSET_STATUS_SET = new Set<AssetStatus>(['pending', 'ready', 'deleted', 'failed']);
+
+export function normalizeAssetStatus(status: AssetStatusLike): AssetDisplayStatus {
+  if (typeof status === 'number') {
+    return ASSET_STATUS_NUMBER_MAP[status] ?? 'unknown';
+  }
+
+  if (typeof status !== 'string') {
+    return 'unknown';
+  }
+
+  const normalized = status.trim().toLowerCase();
+  if (normalized === 'processing') {
+    return 'pending';
+  }
+
+  return ASSET_STATUS_SET.has(normalized as AssetStatus)
+    ? (normalized as AssetStatus)
+    : 'unknown';
+}
+
 export interface AssetListItemResponse {
   id: string;
   type: string;
-  status: string;
+  status: AssetStatus;
   originalFileName: string;
   contentType: string;
   size: number;
@@ -63,7 +95,7 @@ export interface AssetLatestExecutionSummaryResponse {
 export interface AssetResponse {
   id: string;
   type: string;
-  status: string;
+  status: AssetStatus;
   originalFileName: string;
   storedFileName: string | null;
   contentType: string;
