@@ -166,6 +166,25 @@ Compose 默认拉取镜像：
 - 当前 compose 默认是前后端分离部署，不内置前端反向代理后端。
 - 如需统一域名 / HTTPS / 网关策略，请在仓库外层自行配置反向代理（Nginx/Caddy/Traefik）。
 
+### 6.3 GitHub Pages（前端演示/备用入口）
+
+- 本仓库提供前端 Pages 工作流：`.github/workflows/deploy-pages.yml`
+- 触发方式：推送到 `main`（或手动 `workflow_dispatch`）
+- 定位：仅托管前端静态页面，不托管后端 API
+
+首次使用建议：
+
+1. 在仓库 Settings -> Pages 中将 Source 设为 `GitHub Actions`
+2. 等待 workflow 完成后访问 Pages 站点
+3. 进入前端设置页，填写：
+   - API Base URL（你的后端公开地址）
+   - API Key
+
+说明：
+
+- GitHub Pages 仅用于演示/备用入口，不替代后端 Docker/Compose 部署
+- 前端不会内置固定 API Key
+
 ## 7. API Key 配置与调用
 
 - Header：`Authorization: Bearer <API_KEY>`

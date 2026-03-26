@@ -172,12 +172,22 @@ curl -X POST "http://localhost:5121/mcp" \
 
 详细步骤请看：[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
 
+## GitHub Pages（前端演示/备用入口）
+
+- 前端 `web/nekohub-web` 可通过 GitHub Pages 作为静态演示站发布。
+- Pages 仅托管前端静态文件，不承载后端 API。
+- 首次打开演示站后，请在设置页手动填写：
+  - API Base URL（你的后端公开地址）
+  - API Key
+- Pages 仅用于演示与备用入口，不替代当前后端 Docker/Compose 部署链路。
+
 ## 配置要点
 
 - 默认数据库：SQLite
 - 默认最简模式：Local 存储 + SQLite
 - S3-compatible 模式：对象存储走 S3，数据库仍使用 SQLite
 - 前端通过 `VITE_API_BASE_URL` 显式访问后端 API（compose 里由 `FRONTEND_VITE_API_BASE_URL` 注入）
+- 前端默认不内置固定 API 地址，公开演示场景下由设置页填写目标后端地址
 - 后端 CORS 在当前 alpha 默认全开放（`AllowAnyOrigin/AllowAnyHeader/AllowAnyMethod`），优先降低自部署接入成本
 - 当前安全边界依赖 API Key（`Authorization: Bearer <API_KEY>`），不是 Cookie/Session 浏览器会话认证
 - 后续进入更严格部署场景时，可再切换为来源白名单模式

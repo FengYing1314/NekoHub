@@ -22,10 +22,6 @@ function normalizeBaseUrl(apiBaseUrl: string): string {
     return DEFAULT_API_BASE_URL;
   }
 
-  if (trimmed === '/') {
-    return '/';
-  }
-
   return trimmed.replace(/\/+$/, '');
 }
 

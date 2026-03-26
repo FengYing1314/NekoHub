@@ -36,7 +36,7 @@ const zhCN = {
     apiBaseUrl: 'API Base URL',
     apiKey: 'API Key',
     saveSuccess: '配置已保存',
-    apiBaseUrlPlaceholder: '例如：http://localhost:5121',
+    apiBaseUrlPlaceholder: '例如：https://your-api.example.com',
     apiKeyPlaceholder: '请输入 API Key',
   },
   asset: {
