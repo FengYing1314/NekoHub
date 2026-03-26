@@ -11,6 +11,7 @@ using NekoHub.Api.Mcp.Resources;
 using NekoHub.Api.Mcp.Tools;
 using NekoHub.Api.Contracts.Responses;
 using NekoHub.Api.Configuration;
+using NekoHub.Api.Serialization;
 
 namespace NekoHub.Api.Extensions;
 
@@ -67,11 +68,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<McpToolRegistry>();
         services.AddScoped<IMcpTool, GetAssetMcpTool>();
         services.AddScoped<IMcpTool, ListAssetsMcpTool>();
+        services.AddScoped<IMcpTool, PatchAssetMcpTool>();
         services.AddScoped<IMcpTool, ListSkillsMcpTool>();
         services.AddScoped<IMcpTool, GetAssetContentUrlMcpTool>();
         services.AddScoped<IMcpTool, UploadAssetMcpTool>();
         services.AddScoped<IMcpTool, RunAssetSkillMcpTool>();
         services.AddScoped<IMcpTool, DeleteAssetMcpTool>();
+        services.AddScoped<IMcpTool, BatchDeleteAssetsMcpTool>();
+        services.AddScoped<IMcpTool, GetAssetUsageStatsMcpTool>();
 
         services
             .AddControllers()
@@ -79,6 +83,7 @@ public static class ServiceCollectionExtensions
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
                 options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+                options.JsonSerializerOptions.Converters.Add(new OptionalValueJsonConverterFactory());
                 options.JsonSerializerOptions.Converters.Add(
                     new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false));
             });

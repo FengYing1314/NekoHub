@@ -1,5 +1,6 @@
 using NekoHub.Application.Common.Models;
 using NekoHub.Application.Assets.Queries;
+using NekoHub.Application.Assets.Queries.Dtos;
 using NekoHub.Domain.Assets;
 
 namespace NekoHub.Application.Abstractions.Persistence;
@@ -11,6 +12,8 @@ public interface IAssetRepository
     Task<Asset?> GetByIdAsync(Guid assetId, CancellationToken cancellationToken = default);
 
     Task<PagedResult<Asset>> GetPagedAsync(GetAssetsPagedQuery query, CancellationToken cancellationToken = default);
+
+    Task<AssetUsageStatsQueryDto> GetUsageStatsAsync(CancellationToken cancellationToken = default);
 
     Task DeleteAsync(Asset asset, CancellationToken cancellationToken = default);
 

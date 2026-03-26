@@ -26,8 +26,7 @@ public sealed class AssetEntityTypeConfiguration : IEntityTypeConfiguration<Asse
             .IsRequired();
 
         builder.Property(x => x.OriginalFileName)
-            .HasMaxLength(512)
-            .IsRequired();
+            .HasMaxLength(512);
 
         builder.Property(x => x.StoredFileName)
             .HasMaxLength(255);

@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using NekoHub.Application.Abstractions.Processing;
 using NekoHub.Application.Abstractions.Skills;
 using NekoHub.Application.Assets.Queries.Dtos;
@@ -29,6 +30,7 @@ public sealed class AssetSkillService(
     public async Task<RunAssetSkillResultDto> RunAsync(
         Guid assetId,
         string skillName,
+        JsonObject? parameters = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(skillName))
@@ -52,7 +54,7 @@ public sealed class AssetSkillService(
 
         var runResult = await skillRunner.RunAsync(
             skill,
-            new SkillExecutionContext(processingContext, SkillTriggerSources.Manual),
+            new SkillExecutionContext(processingContext, SkillTriggerSources.Manual, parameters),
             cancellationToken);
 
         var latestAsset = await assetQueryService.GetByIdAsync(assetId, cancellationToken);

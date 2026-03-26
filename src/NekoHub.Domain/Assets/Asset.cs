@@ -8,7 +8,7 @@ public sealed class Asset
 
     public AssetStatus Status { get; private set; }
 
-    public string OriginalFileName { get; private set; } = string.Empty;
+    public string? OriginalFileName { get; private set; }
 
     public string? StoredFileName { get; private set; }
 
@@ -99,8 +99,14 @@ public sealed class Asset
 
     public void UpdateAccessibleMetadata(string? description, string? altText)
     {
+        UpdateMetadata(description, altText, OriginalFileName);
+    }
+
+    public void UpdateMetadata(string? description, string? altText, string? originalFileName)
+    {
         Description = description;
         AltText = altText;
+        OriginalFileName = originalFileName;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 }

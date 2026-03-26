@@ -6,7 +6,7 @@ public sealed record AssetListItemResponse(
     Guid Id,
     AssetType Type,
     AssetStatus Status,
-    string OriginalFileName,
+    string? OriginalFileName,
     string ContentType,
     long Size,
     int? Width,

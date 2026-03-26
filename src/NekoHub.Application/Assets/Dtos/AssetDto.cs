@@ -6,7 +6,7 @@ public sealed record AssetDto(
     Guid Id,
     AssetType Type,
     AssetStatus Status,
-    string OriginalFileName,
+    string? OriginalFileName,
     string? StoredFileName,
     string ContentType,
     string Extension,

@@ -36,6 +36,8 @@ public sealed class SkillExecutionEntityTypeConfiguration : IEntityTypeConfigura
         builder.Property(x => x.Succeeded)
             .IsRequired();
 
+        builder.Property(x => x.ParametersJson);
+
         builder.HasOne<Asset>()
             .WithMany()
             .HasForeignKey(x => x.SourceAssetId)

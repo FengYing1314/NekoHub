@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using NekoHub.Application.Abstractions.Persistence;
 using NekoHub.Application.Abstractions.Skills;
@@ -97,7 +98,8 @@ public sealed class SkillRunner(
             triggerSource: context.TriggerSource,
             startedAtUtc: runStartedAtUtc,
             completedAtUtc: runCompletedAtUtc,
-            succeeded: succeeded);
+            succeeded: succeeded,
+            parametersJson: SerializeParameters(context.Parameters));
 
         await skillExecutionRepository.AddExecutionAsync(execution, cancellationToken);
         await skillExecutionRepository.AddStepResultsAsync(stepExecutionRecords, cancellationToken);
@@ -107,5 +109,10 @@ public sealed class SkillRunner(
             SkillName: definition.Name,
             Succeeded: succeeded,
             Steps: stepResults);
+    }
+
+    private static string? SerializeParameters(JsonObject? parameters)
+    {
+        return parameters?.ToJsonString();
     }
 }

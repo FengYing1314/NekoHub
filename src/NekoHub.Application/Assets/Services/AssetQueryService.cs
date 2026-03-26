@@ -42,6 +42,11 @@ public sealed class AssetQueryService(
         return new AssetPagedQueryDto(items, paged.Page, paged.PageSize, paged.Total);
     }
 
+    public Task<AssetUsageStatsQueryDto> GetUsageStatsAsync(CancellationToken cancellationToken = default)
+    {
+        return assetRepository.GetUsageStatsAsync(cancellationToken);
+    }
+
     private static void ValidatePaging(GetAssetsPagedQuery query)
     {
         if (query.Page < 1)
@@ -64,9 +69,9 @@ public sealed class AssetQueryService(
 
     private static GetAssetsPagedQuery NormalizeQuery(GetAssetsPagedQuery query)
     {
-        var keyword = string.IsNullOrWhiteSpace(query.Keyword)
+        var keyword = string.IsNullOrWhiteSpace(query.Query)
             ? null
-            : query.Keyword.Trim();
+            : query.Query.Trim();
 
         var contentType = string.IsNullOrWhiteSpace(query.ContentType)
             ? null
@@ -74,7 +79,7 @@ public sealed class AssetQueryService(
 
         return query with
         {
-            Keyword = keyword,
+            Query = keyword,
             ContentType = contentType
         };
     }

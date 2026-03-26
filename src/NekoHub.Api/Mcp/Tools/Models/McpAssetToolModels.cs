@@ -8,7 +8,7 @@ public sealed record McpAssetView(
     Guid Id,
     AssetType Type,
     AssetStatus Status,
-    string OriginalFileName,
+    string? OriginalFileName,
     string ContentType,
     string Extension,
     long Size,
@@ -59,7 +59,7 @@ public sealed record McpAssetListItemView(
     Guid Id,
     AssetType Type,
     AssetStatus Status,
-    string OriginalFileName,
+    string? OriginalFileName,
     string ContentType,
     long Size,
     int? Width,
@@ -83,6 +83,27 @@ public sealed record McpDeleteAssetView(
     Guid Id,
     string Status,
     DateTimeOffset DeletedAtUtc);
+
+public sealed record McpBatchDeleteAssetsView(
+    int RequestedCount,
+    int DeletedCount,
+    IReadOnlyList<Guid> NotFoundIds);
+
+public sealed record McpAssetContentTypeBreakdownView(
+    string ContentType,
+    long Count,
+    long TotalBytes);
+
+public sealed record McpAssetSkillUsageSummaryView(
+    string SkillName,
+    long RunCount);
+
+public sealed record McpAssetUsageStatsView(
+    long TotalAssets,
+    long TotalBytes,
+    long TotalDerivatives,
+    IReadOnlyList<McpAssetContentTypeBreakdownView> ContentTypeBreakdown,
+    McpAssetSkillUsageSummaryView? MostActiveSkill);
 
 public static class McpAssetToolModelMapper
 {
@@ -176,5 +197,32 @@ public static class McpAssetToolModelMapper
             Id: dto.Id,
             Status: dto.Status,
             DeletedAtUtc: dto.DeletedAtUtc);
+    }
+
+    public static McpBatchDeleteAssetsView ToView(BatchDeleteAssetsResultDto dto)
+    {
+        return new McpBatchDeleteAssetsView(
+            RequestedCount: dto.RequestedCount,
+            DeletedCount: dto.DeletedCount,
+            NotFoundIds: dto.NotFoundIds);
+    }
+
+    public static McpAssetUsageStatsView ToView(AssetUsageStatsQueryDto dto)
+    {
+        return new McpAssetUsageStatsView(
+            TotalAssets: dto.TotalAssets,
+            TotalBytes: dto.TotalBytes,
+            TotalDerivatives: dto.TotalDerivatives,
+            ContentTypeBreakdown: dto.ContentTypeBreakdown
+                .Select(static item => new McpAssetContentTypeBreakdownView(
+                    ContentType: item.ContentType,
+                    Count: item.Count,
+                    TotalBytes: item.TotalBytes))
+                .ToList(),
+            MostActiveSkill: dto.MostActiveSkill is null
+                ? null
+                : new McpAssetSkillUsageSummaryView(
+                    SkillName: dto.MostActiveSkill.SkillName,
+                    RunCount: dto.MostActiveSkill.RunCount));
     }
 }

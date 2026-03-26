@@ -11,6 +11,7 @@ using NekoHub.Application.Assets.Queries;
 using NekoHub.Application.Assets.Queries.Dtos;
 using NekoHub.Application.Assets.Services;
 using NekoHub.Application.Common.Exceptions;
+using NekoHub.Domain.Assets;
 
 namespace NekoHub.Api.Controllers;
 
@@ -121,6 +122,40 @@ public sealed class AssetsController(
         return Ok(response);
     }
 
+    [HttpPatch("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<AssetResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+    [EndpointSummary("Patch asset metadata")]
+    public async Task<IActionResult> PatchAsync(
+        [FromRoute] Guid id,
+        [FromBody] PatchAssetMetadataRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Description.IsSet && request.Description.Value is { Length: > 1000 })
+        {
+            throw new ValidationException("asset_description_too_long", "Description must be 1000 characters or fewer.");
+        }
+
+        if (request.AltText.IsSet && request.AltText.Value is { Length: > 1000 })
+        {
+            throw new ValidationException("asset_alt_text_too_long", "Alt text must be 1000 characters or fewer.");
+        }
+
+        await assetCommandService.PatchAsync(
+            new PatchAssetMetadataCommand(
+                AssetId: id,
+                Description: request.Description,
+                AltText: request.AltText,
+                OriginalFileName: request.OriginalFileName),
+            cancellationToken);
+
+        var asset = await assetQueryService.GetByIdAsync(id, cancellationToken);
+        var response = ApiResponseFactory.Success(ToResponse(asset));
+        return Ok(response);
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<AssetPagedResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
@@ -132,15 +167,16 @@ public sealed class AssetsController(
     {
         var resolvedPage = ResolvePage(request?.Page);
         var resolvedPageSize = ResolvePageSize(request?.PageSize);
-        var resolvedSortBy = ResolveSortBy(request?.SortBy);
-        var resolvedSortDirection = ResolveSortDirection(request?.SortDirection);
+        var resolvedSortBy = ResolveSortBy(request?.OrderBy ?? request?.SortBy);
+        var resolvedSortDirection = ResolveSortDirection(request?.OrderDirection ?? request?.SortDirection);
 
         var query = new GetAssetsPagedQuery(
             Page: resolvedPage,
             PageSize: resolvedPageSize,
             MaxPageSize: _assetApiOptions.MaxPageSize,
-            Keyword: request?.Keyword,
+            Query: request?.Query ?? request?.Keyword,
             ContentType: request?.ContentType,
+            Status: ResolveStatus(request?.Status),
             SortBy: resolvedSortBy,
             SortDirection: resolvedSortDirection);
 
@@ -162,6 +198,30 @@ public sealed class AssetsController(
     {
         var deleted = await assetCommandService.DeleteAsync(new DeleteAssetCommand(id), cancellationToken);
         var response = ApiResponseFactory.Success(ToResponse(deleted));
+        return Ok(response);
+    }
+
+    [HttpPost("batch-delete")]
+    [ProducesResponseType(typeof(ApiResponse<BatchDeleteAssetsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+    [EndpointSummary("Batch delete assets")]
+    public async Task<IActionResult> BatchDeleteAsync([FromBody] Guid[]? ids, CancellationToken cancellationToken)
+    {
+        var deleted = await assetCommandService.BatchDeleteAsync(
+            new BatchDeleteAssetsCommand(ids ?? []),
+            cancellationToken);
+        var response = ApiResponseFactory.Success(ToResponse(deleted));
+        return Ok(response);
+    }
+
+    [HttpGet("usage-stats")]
+    [ProducesResponseType(typeof(ApiResponse<AssetUsageStatsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+    [EndpointSummary("Get asset usage stats")]
+    public async Task<IActionResult> GetUsageStatsAsync(CancellationToken cancellationToken)
+    {
+        var stats = await assetQueryService.GetUsageStatsAsync(cancellationToken);
+        var response = ApiResponseFactory.Success(ToResponse(stats));
         return Ok(response);
     }
 
@@ -299,6 +359,33 @@ public sealed class AssetsController(
             DeletedAtUtc: dto.DeletedAtUtc);
     }
 
+    private static BatchDeleteAssetsResponse ToResponse(BatchDeleteAssetsResultDto dto)
+    {
+        return new BatchDeleteAssetsResponse(
+            RequestedCount: dto.RequestedCount,
+            DeletedCount: dto.DeletedCount,
+            NotFoundIds: dto.NotFoundIds);
+    }
+
+    private static AssetUsageStatsResponse ToResponse(AssetUsageStatsQueryDto dto)
+    {
+        return new AssetUsageStatsResponse(
+            TotalAssets: dto.TotalAssets,
+            TotalBytes: dto.TotalBytes,
+            TotalDerivatives: dto.TotalDerivatives,
+            ContentTypeBreakdown: dto.ContentTypeBreakdown
+                .Select(static item => new AssetContentTypeBreakdownResponse(
+                    ContentType: item.ContentType,
+                    Count: item.Count,
+                    TotalBytes: item.TotalBytes))
+                .ToList(),
+            MostActiveSkill: dto.MostActiveSkill is null
+                ? null
+                : new AssetSkillUsageSummaryResponse(
+                    SkillName: dto.MostActiveSkill.SkillName,
+                    RunCount: dto.MostActiveSkill.RunCount));
+    }
+
     private int ResolvePage(int? page)
     {
         if (!page.HasValue || page.Value < 1)
@@ -323,7 +410,7 @@ public sealed class AssetsController(
     {
         if (string.IsNullOrWhiteSpace(sortBy))
         {
-            return AssetListSortBy.CreatedAt;
+            return AssetListSortBy.CreatedAtUtc;
         }
 
         if (sortBy.Equals("size", StringComparison.OrdinalIgnoreCase))
@@ -334,10 +421,10 @@ public sealed class AssetsController(
         if (sortBy.Equals("createdAt", StringComparison.OrdinalIgnoreCase)
             || sortBy.Equals("createdAtUtc", StringComparison.OrdinalIgnoreCase))
         {
-            return AssetListSortBy.CreatedAt;
+            return AssetListSortBy.CreatedAtUtc;
         }
 
-        return AssetListSortBy.CreatedAt;
+        return AssetListSortBy.CreatedAtUtc;
     }
 
     private static AssetListSortDirection ResolveSortDirection(string? sortDirection)
@@ -358,5 +445,17 @@ public sealed class AssetsController(
         }
 
         return AssetListSortDirection.Desc;
+    }
+
+    private static AssetStatus? ResolveStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<AssetStatus>(status.Trim(), ignoreCase: true, out var parsedStatus)
+            ? parsedStatus
+            : null;
     }
 }

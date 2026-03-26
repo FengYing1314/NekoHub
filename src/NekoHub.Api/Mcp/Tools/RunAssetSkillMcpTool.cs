@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Text.Json;
 using NekoHub.Api.Mcp.Protocol;
 using NekoHub.Api.Mcp.Tools.Models;
@@ -23,6 +24,11 @@ public sealed class RunAssetSkillMcpTool(IAssetSkillService assetSkillService) :
                 ["skillName"] = new
                 {
                     type = "string"
+                },
+                ["parameters"] = new
+                {
+                    type = "object",
+                    additionalProperties = true
                 }
             },
             required = new[] { "assetId", "skillName" },
@@ -49,9 +55,13 @@ public sealed class RunAssetSkillMcpTool(IAssetSkillService assetSkillService) :
             throw new ValidationException("tool_argument_invalid", "Argument 'assetId' must be a valid GUID.");
         }
 
-        var runResult = await assetSkillService.RunAsync(assetId, input.SkillName ?? string.Empty, cancellationToken);
+        var runResult = await assetSkillService.RunAsync(
+            assetId,
+            input.SkillName ?? string.Empty,
+            input.Parameters,
+            cancellationToken);
         return new McpToolInvocationResult(McpSkillToolModelMapper.ToView(runResult));
     }
 
-    private sealed record Arguments(string? AssetId, string? SkillName);
+    private sealed record Arguments(string? AssetId, string? SkillName, JsonObject? Parameters);
 }

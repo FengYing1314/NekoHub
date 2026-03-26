@@ -106,6 +106,29 @@ public sealed class AssetCommandService(
         return ToDto(asset);
     }
 
+    public async Task<AssetDto> PatchAsync(PatchAssetMetadataCommand command, CancellationToken cancellationToken = default)
+    {
+        var asset = await assetRepository.GetByIdAsync(command.AssetId, cancellationToken);
+        if (asset is null)
+        {
+            throw new NotFoundException("asset_not_found", $"Asset '{command.AssetId}' was not found.");
+        }
+
+        var originalFileName = asset.OriginalFileName;
+        if (command.OriginalFileName.IsSet)
+        {
+            originalFileName = NormalizePatchedOriginalFileName(command.OriginalFileName.Value);
+        }
+
+        asset.UpdateMetadata(
+            description: command.Description.IsSet ? command.Description.Value : asset.Description,
+            altText: command.AltText.IsSet ? command.AltText.Value : asset.AltText,
+            originalFileName: originalFileName);
+
+        await assetRepository.SaveChangesAsync(cancellationToken);
+        return ToDto(asset);
+    }
+
     public async Task<DeleteAssetResultDto> DeleteAsync(DeleteAssetCommand command, CancellationToken cancellationToken = default)
     {
         var asset = await assetRepository.GetByIdAsync(command.AssetId, cancellationToken);
@@ -135,6 +158,33 @@ public sealed class AssetCommandService(
             DeletedAtUtc: DateTimeOffset.UtcNow);
     }
 
+    public async Task<BatchDeleteAssetsResultDto> BatchDeleteAsync(
+        BatchDeleteAssetsCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var assetIds = command.AssetIds ?? [];
+        var notFoundIds = new List<Guid>();
+        var deletedCount = 0;
+
+        foreach (var assetId in assetIds)
+        {
+            try
+            {
+                await DeleteAsync(new DeleteAssetCommand(assetId), cancellationToken);
+                deletedCount++;
+            }
+            catch (NotFoundException exception) when (exception.Code == "asset_not_found")
+            {
+                notFoundIds.Add(assetId);
+            }
+        }
+
+        return new BatchDeleteAssetsResultDto(
+            RequestedCount: assetIds.Count,
+            DeletedCount: deletedCount,
+            NotFoundIds: notFoundIds);
+    }
+
     private static string NormalizeOriginalFileName(string originalFileName)
     {
         if (string.IsNullOrWhiteSpace(originalFileName))
@@ -143,6 +193,22 @@ public sealed class AssetCommandService(
         }
 
         return Path.GetFileName(originalFileName.Trim());
+    }
+
+    private static string? NormalizePatchedOriginalFileName(string? originalFileName)
+    {
+        if (originalFileName is null)
+        {
+            return null;
+        }
+
+        var normalized = NormalizeOriginalFileName(originalFileName);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new ValidationException("asset_filename_invalid", "Original file name is invalid.");
+        }
+
+        return normalized;
     }
 
     private static async Task<Stream> EnsureSeekableStreamAsync(Stream source, CancellationToken cancellationToken)

@@ -1,8 +1,10 @@
+using NekoHub.Domain.Assets;
+
 namespace NekoHub.Application.Assets.Queries;
 
 public enum AssetListSortBy
 {
-    CreatedAt = 1,
+    CreatedAtUtc = 1,
     Size = 2
 }
 
@@ -16,7 +18,8 @@ public sealed record GetAssetsPagedQuery(
     int Page,
     int PageSize,
     int MaxPageSize,
-    string? Keyword,
+    string? Query,
     string? ContentType,
+    AssetStatus? Status,
     AssetListSortBy SortBy,
     AssetListSortDirection SortDirection);

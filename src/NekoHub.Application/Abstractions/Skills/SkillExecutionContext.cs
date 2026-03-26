@@ -1,18 +1,25 @@
+using System.Text.Json.Nodes;
 using NekoHub.Application.Abstractions.Processing;
 
 namespace NekoHub.Application.Abstractions.Skills;
 
 public sealed class SkillExecutionContext
 {
-    public SkillExecutionContext(AssetCreatedProcessingContext asset, string triggerSource)
+    public SkillExecutionContext(
+        AssetCreatedProcessingContext asset,
+        string triggerSource,
+        JsonObject? parameters = null)
     {
         Asset = asset;
         TriggerSource = NormalizeTriggerSource(triggerSource);
+        Parameters = parameters?.DeepClone() as JsonObject;
     }
 
     public AssetCreatedProcessingContext Asset { get; }
 
     public string TriggerSource { get; }
+
+    public JsonObject? Parameters { get; }
 
     public IDictionary<string, object?> Items { get; } = new Dictionary<string, object?>(StringComparer.Ordinal);
 

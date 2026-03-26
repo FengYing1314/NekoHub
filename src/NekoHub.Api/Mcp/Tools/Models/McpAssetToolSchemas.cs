@@ -2,6 +2,8 @@ namespace NekoHub.Api.Mcp.Tools.Models;
 
 public static class McpAssetToolSchemas
 {
+    public static object NullableString => NullableStringSchema();
+
     public static object UploadAssetInput { get; } = BuildUploadAssetInputSchema();
 
     public static object AssetDetail { get; } = BuildAssetDetailSchema();
@@ -25,6 +27,40 @@ public static class McpAssetToolSchemas
             ["deletedAtUtc"] = StringSchema("date-time")
         },
         ["id", "status", "deletedAtUtc"]);
+
+    public static object BatchDeleteAssets { get; } = ObjectSchema(
+        new Dictionary<string, object?>
+        {
+            ["requestedCount"] = IntegerSchema(),
+            ["deletedCount"] = IntegerSchema(),
+            ["notFoundIds"] = ArraySchema(StringSchema("uuid"))
+        },
+        ["requestedCount", "deletedCount", "notFoundIds"]);
+
+    public static object AssetUsageStats { get; } = ObjectSchema(
+        new Dictionary<string, object?>
+        {
+            ["totalAssets"] = IntegerSchema(),
+            ["totalBytes"] = IntegerSchema(),
+            ["totalDerivatives"] = IntegerSchema(),
+            ["contentTypeBreakdown"] = ArraySchema(
+                ObjectSchema(
+                    new Dictionary<string, object?>
+                    {
+                        ["contentType"] = StringSchema(),
+                        ["count"] = IntegerSchema(),
+                        ["totalBytes"] = IntegerSchema()
+                    },
+                    ["contentType", "count", "totalBytes"])),
+            ["mostActiveSkill"] = NullableObjectSchema(
+                new Dictionary<string, object?>
+                {
+                    ["skillName"] = StringSchema(),
+                    ["runCount"] = IntegerSchema()
+                },
+                ["skillName", "runCount"])
+        },
+        ["totalAssets", "totalBytes", "totalDerivatives", "contentTypeBreakdown"]);
 
     private static object BuildUploadAssetInputSchema()
     {
@@ -61,7 +97,7 @@ public static class McpAssetToolSchemas
                 ["id"] = StringSchema("uuid"),
                 ["type"] = StringSchema(),
                 ["status"] = StringSchema(),
-                ["originalFileName"] = StringSchema(),
+                ["originalFileName"] = NullableStringSchema(),
                 ["contentType"] = StringSchema(),
                 ["extension"] = StringSchema(),
                 ["size"] = IntegerSchema(),
@@ -146,7 +182,7 @@ public static class McpAssetToolSchemas
                             ["id"] = StringSchema("uuid"),
                             ["type"] = StringSchema(),
                             ["status"] = StringSchema(),
-                            ["originalFileName"] = StringSchema(),
+                ["originalFileName"] = NullableStringSchema(),
                             ["contentType"] = StringSchema(),
                             ["size"] = IntegerSchema(),
                             ["width"] = NullableIntegerSchema(),

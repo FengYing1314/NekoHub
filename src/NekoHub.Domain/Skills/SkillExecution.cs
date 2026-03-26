@@ -16,6 +16,8 @@ public sealed class SkillExecution
 
     public bool Succeeded { get; private set; }
 
+    public string? ParametersJson { get; private set; }
+
     private SkillExecution()
     {
     }
@@ -27,7 +29,8 @@ public sealed class SkillExecution
         string triggerSource,
         DateTimeOffset startedAtUtc,
         DateTimeOffset completedAtUtc,
-        bool succeeded)
+        bool succeeded,
+        string? parametersJson = null)
     {
         if (completedAtUtc < startedAtUtc)
         {
@@ -41,5 +44,6 @@ public sealed class SkillExecution
         StartedAtUtc = startedAtUtc;
         CompletedAtUtc = completedAtUtc;
         Succeeded = succeeded;
+        ParametersJson = parametersJson;
     }
 }

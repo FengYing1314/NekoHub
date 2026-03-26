@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NekoHub.Api.Serialization;
 
 namespace NekoHub.Api.Mcp.Protocol;
 
@@ -16,6 +17,7 @@ public static class McpJsonOptions
             DictionaryKeyPolicy = JsonNamingPolicy.CamelCase
         };
 
+        options.Converters.Add(new OptionalValueJsonConverterFactory());
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return options;
     }
