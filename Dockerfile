@@ -22,6 +22,8 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./NekoHub.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
+USER root
 WORKDIR /app
 COPY --from=publish /app/publish .
+RUN mkdir -p /app/storage/assets
 ENTRYPOINT ["dotnet", "NekoHub.Api.dll"]
