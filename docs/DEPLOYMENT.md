@@ -16,6 +16,7 @@
 ## 2. 前置要求
 
 - .NET 10 SDK（源码部署需要）
+- Node.js 22+（前端源码部署需要）
 - Docker / Docker Compose（容器部署需要）
 
 ## 3. 环境变量说明
@@ -27,6 +28,9 @@
 - `Persistence__Database__ConnectionString`：SQLite 连接串
 - `Auth__ApiKey__Enabled`：是否启用 API Key
 - `Auth__ApiKey__Keys__0`：第一把 API Key（可继续 `__1`、`__2`）
+- `FRONTEND_PORT`：前端容器对外端口，默认 `5173`
+- `FRONTEND_VITE_API_BASE_URL`：前端默认 API Base URL，推荐 `/`
+- `FRONTEND_VITE_MAX_UPLOAD_SIZE_BYTES`：前端上传前置校验阈值，需与后端上传限制保持一致
 
 ### 3.2 Local 模式
 
@@ -68,7 +72,18 @@ dotnet run --project src/NekoHub.Api/NekoHub.Api.csproj
 curl http://localhost:5121/api/v1/system/ping
 ```
 
-> 提示：开发环境可关闭 API Key；上线环境建议始终开启。
+5. 前端源码启动（可选）：
+
+```bash
+cd web/nekohub-web
+npm install
+npm run dev
+```
+
+默认访问：
+
+- 前端：`http://localhost:5173`
+- 后端：`http://localhost:5121`
 
 ## 5. Docker 部署（单容器）
 
@@ -116,6 +131,11 @@ docker compose up -d
 curl http://localhost:5121/api/v1/system/ping
 ```
 
+5. 访问前端管理面板：
+
+- `http://localhost:5173`
+- 前端容器会把 `/api`、`/mcp`、`/content`、`/openapi` 反向代理到后端服务
+
 ### 6.2 S3-compatible 模式（Compose + MinIO 示例）
 
 ```bash
@@ -124,6 +144,8 @@ docker compose --profile s3 up --build minio minio-init nekohub-s3
 
 默认端口：
 
+- 前端管理面板：`http://localhost:5173`
+- NekoHub Local 模式：`http://localhost:5121`
 - NekoHub S3 模式示例：`http://localhost:5122`
 - MinIO API：`http://localhost:9000`
 - MinIO Console：`http://localhost:9001`
@@ -158,6 +180,8 @@ curl -X POST "http://localhost:5121/mcp" \
     "method": "tools/list"
   }'
 ```
+
+前端管理面板使用时，请先在设置页填入 API Key（与 `Auth__ApiKey__Keys__0` 一致）。
 
 ## 8. 首次部署常见踩坑
 

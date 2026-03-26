@@ -54,7 +54,11 @@ public sealed class ListAssetsMcpTool(
             new GetAssetsPagedQuery(
                 Page: input.Page ?? 1,
                 PageSize: input.PageSize ?? options.DefaultPageSize,
-                MaxPageSize: options.MaxPageSize),
+                MaxPageSize: options.MaxPageSize,
+                Keyword: null,
+                ContentType: null,
+                SortBy: AssetListSortBy.CreatedAt,
+                SortDirection: AssetListSortDirection.Desc),
             cancellationToken);
 
         return new McpToolInvocationResult(McpAssetToolModelMapper.ToView(paged));

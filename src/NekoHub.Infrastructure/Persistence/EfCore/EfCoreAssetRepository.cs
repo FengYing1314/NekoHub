@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NekoHub.Application.Abstractions.Persistence;
+using NekoHub.Application.Assets.Queries;
 using NekoHub.Application.Common.Models;
 using NekoHub.Domain.Assets;
 
@@ -18,17 +19,21 @@ public sealed class EfCoreAssetRepository(AssetDbContext dbContext) : IAssetRepo
             .SingleOrDefaultAsync(x => x.Id == assetId, cancellationToken);
     }
 
-    public async Task<PagedResult<Asset>> GetPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Asset>> GetPagedAsync(GetAssetsPagedQuery query, CancellationToken cancellationToken = default)
     {
-        var safePage = page <= 0 ? 1 : page;
-        var safePageSize = pageSize <= 0 ? 20 : pageSize;
+        var safePage = query.Page <= 0 ? 1 : query.Page;
+        var safePageSize = query.PageSize <= 0 ? 20 : query.PageSize;
 
-        var query = dbContext.Assets
+        var efQuery = dbContext.Assets
             .AsNoTracking()
-            .OrderByDescending(x => x.CreatedAtUtc);
+            .AsQueryable();
 
-        var total = await query.CountAsync(cancellationToken);
-        var items = await query
+        efQuery = ApplyKeywordFilter(efQuery, query.Keyword);
+        efQuery = ApplyContentTypeFilter(efQuery, query.ContentType);
+        efQuery = ApplySort(efQuery, query.SortBy, query.SortDirection);
+
+        var total = await efQuery.LongCountAsync(cancellationToken);
+        var items = await efQuery
             .Skip((safePage - 1) * safePageSize)
             .Take(safePageSize)
             .ToListAsync(cancellationToken);
@@ -45,5 +50,61 @@ public sealed class EfCoreAssetRepository(AssetDbContext dbContext) : IAssetRepo
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static IQueryable<Asset> ApplyKeywordFilter(IQueryable<Asset> query, string? keyword)
+    {
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return query;
+        }
+
+        // SQLite 下 LIKE 在 ASCII 范围大小写不敏感；当前关键词搜索覆盖文件名、描述和 Alt 文本。
+        var likePattern = $"%{keyword.Trim()}%";
+        return query.Where(asset =>
+            EF.Functions.Like(asset.OriginalFileName, likePattern)
+            || (asset.Description != null && EF.Functions.Like(asset.Description, likePattern))
+            || (asset.AltText != null && EF.Functions.Like(asset.AltText, likePattern)));
+    }
+
+    private static IQueryable<Asset> ApplyContentTypeFilter(IQueryable<Asset> query, string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+        {
+            return query;
+        }
+
+        var normalized = contentType.Trim();
+        if (normalized.EndsWith("/*", StringComparison.Ordinal))
+        {
+            var prefix = normalized[..^1];
+            return query.Where(asset => EF.Functions.Like(asset.ContentType, $"{prefix}%"));
+        }
+
+        return query.Where(asset => EF.Functions.Like(asset.ContentType, normalized));
+    }
+
+    private static IQueryable<Asset> ApplySort(
+        IQueryable<Asset> query,
+        AssetListSortBy sortBy,
+        AssetListSortDirection sortDirection)
+    {
+        return (sortBy, sortDirection) switch
+        {
+            (AssetListSortBy.Size, AssetListSortDirection.Asc) => query
+                .OrderBy(asset => asset.Size)
+                .ThenByDescending(asset => asset.CreatedAtUtc)
+                .ThenBy(asset => asset.Id),
+            (AssetListSortBy.Size, AssetListSortDirection.Desc) => query
+                .OrderByDescending(asset => asset.Size)
+                .ThenByDescending(asset => asset.CreatedAtUtc)
+                .ThenByDescending(asset => asset.Id),
+            (AssetListSortBy.CreatedAt, AssetListSortDirection.Asc) => query
+                .OrderBy(asset => asset.CreatedAtUtc)
+                .ThenBy(asset => asset.Id),
+            _ => query
+                .OrderByDescending(asset => asset.CreatedAtUtc)
+                .ThenByDescending(asset => asset.Id)
+        };
     }
 }

@@ -127,18 +127,22 @@ public sealed class AssetsController(
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
     [EndpointSummary("List assets with pagination")]
     public async Task<IActionResult> GetPagedAsync(
-        [FromQuery] int? page,
-        [FromQuery] int? pageSize,
+        [FromQuery] GetAssetsPagedRequest? request,
         CancellationToken cancellationToken)
     {
-        // 当查询参数缺失时，使用配置里的默认分页值，避免 controller 硬编码常量。
-        var resolvedPage = page ?? 1;
-        var resolvedPageSize = pageSize ?? _assetApiOptions.DefaultPageSize;
+        var resolvedPage = ResolvePage(request?.Page);
+        var resolvedPageSize = ResolvePageSize(request?.PageSize);
+        var resolvedSortBy = ResolveSortBy(request?.SortBy);
+        var resolvedSortDirection = ResolveSortDirection(request?.SortDirection);
 
         var query = new GetAssetsPagedQuery(
             Page: resolvedPage,
             PageSize: resolvedPageSize,
-            MaxPageSize: _assetApiOptions.MaxPageSize);
+            MaxPageSize: _assetApiOptions.MaxPageSize,
+            Keyword: request?.Keyword,
+            ContentType: request?.ContentType,
+            SortBy: resolvedSortBy,
+            SortDirection: resolvedSortDirection);
 
         var paged = await assetQueryService.GetPagedAsync(query, cancellationToken);
         var response = ApiResponseFactory.Success(ToPagedResponse(paged));
@@ -293,5 +297,66 @@ public sealed class AssetsController(
             Id: dto.Id,
             Status: dto.Status,
             DeletedAtUtc: dto.DeletedAtUtc);
+    }
+
+    private int ResolvePage(int? page)
+    {
+        if (!page.HasValue || page.Value < 1)
+        {
+            return 1;
+        }
+
+        return page.Value;
+    }
+
+    private int ResolvePageSize(int? pageSize)
+    {
+        if (!pageSize.HasValue || pageSize.Value < 1)
+        {
+            return _assetApiOptions.DefaultPageSize;
+        }
+
+        return Math.Min(pageSize.Value, _assetApiOptions.MaxPageSize);
+    }
+
+    private static AssetListSortBy ResolveSortBy(string? sortBy)
+    {
+        if (string.IsNullOrWhiteSpace(sortBy))
+        {
+            return AssetListSortBy.CreatedAt;
+        }
+
+        if (sortBy.Equals("size", StringComparison.OrdinalIgnoreCase))
+        {
+            return AssetListSortBy.Size;
+        }
+
+        if (sortBy.Equals("createdAt", StringComparison.OrdinalIgnoreCase)
+            || sortBy.Equals("createdAtUtc", StringComparison.OrdinalIgnoreCase))
+        {
+            return AssetListSortBy.CreatedAt;
+        }
+
+        return AssetListSortBy.CreatedAt;
+    }
+
+    private static AssetListSortDirection ResolveSortDirection(string? sortDirection)
+    {
+        if (string.IsNullOrWhiteSpace(sortDirection))
+        {
+            return AssetListSortDirection.Desc;
+        }
+
+        if (sortDirection.Equals("asc", StringComparison.OrdinalIgnoreCase))
+        {
+            return AssetListSortDirection.Asc;
+        }
+
+        if (sortDirection.Equals("desc", StringComparison.OrdinalIgnoreCase))
+        {
+            return AssetListSortDirection.Desc;
+        }
+
+        return AssetListSortDirection.Desc;
     }
 }

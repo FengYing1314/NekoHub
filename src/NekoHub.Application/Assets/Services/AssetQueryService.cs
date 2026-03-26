@@ -35,8 +35,8 @@ public sealed class AssetQueryService(
     {
         ValidatePaging(query);
 
-        // 统一在应用层收口分页规则，仓储只负责按约定返回数据（默认按 createdAt 倒序）。
-        var paged = await assetRepository.GetPagedAsync(query.Page, query.PageSize, cancellationToken);
+        var normalizedQuery = NormalizeQuery(query);
+        var paged = await assetRepository.GetPagedAsync(normalizedQuery, cancellationToken);
         var items = paged.Items.Select(ToListItemDto).ToList();
 
         return new AssetPagedQueryDto(items, paged.Page, paged.PageSize, paged.Total);
@@ -60,6 +60,23 @@ public sealed class AssetQueryService(
                 "page_size_too_large",
                 $"PageSize must be less than or equal to {query.MaxPageSize}.");
         }
+    }
+
+    private static GetAssetsPagedQuery NormalizeQuery(GetAssetsPagedQuery query)
+    {
+        var keyword = string.IsNullOrWhiteSpace(query.Keyword)
+            ? null
+            : query.Keyword.Trim();
+
+        var contentType = string.IsNullOrWhiteSpace(query.ContentType)
+            ? null
+            : query.ContentType.Trim();
+
+        return query with
+        {
+            Keyword = keyword,
+            ContentType = contentType
+        };
     }
 
     private static AssetDetailsQueryDto ToDetailsDto(
