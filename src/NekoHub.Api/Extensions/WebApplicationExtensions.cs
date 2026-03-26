@@ -1,6 +1,7 @@
 using NekoHub.Api.Middleware;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
+using NekoHub.Api.Configuration;
 using NekoHub.Application.Abstractions.Storage;
 using NekoHub.Infrastructure.Options;
 using NekoHub.Infrastructure.Persistence;
@@ -17,6 +18,7 @@ public static class WebApplicationExtensions
         app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
         app.UseLocalStoragePublicContent(defaultStorage);
         app.UseHttpsRedirection();
+        app.UseCors(ApiCorsDefaults.PolicyName);
         app.UseAuthentication();
         app.UseAuthorization();
 

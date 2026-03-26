@@ -18,6 +18,17 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApiLayer(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AssetApiOptions>(configuration.GetSection(AssetApiOptions.SectionName));
+        services.AddCors(options =>
+        {
+            options.AddPolicy(ApiCorsDefaults.PolicyName, policy =>
+            {
+                policy
+                    .AllowAnyOrigin()
+                    .AllowAnyMethod()
+                    .AllowAnyHeader();
+            });
+        });
+
         services
             .AddOptions<ApiKeyAuthOptions>()
             .Bind(configuration.GetSection(ApiKeyAuthOptions.SectionName))

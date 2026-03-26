@@ -32,6 +32,13 @@
 - `FRONTEND_VITE_API_BASE_URL`：前端默认 API Base URL（前后端分离，默认 `http://localhost:5121`）
 - `FRONTEND_VITE_MAX_UPLOAD_SIZE_BYTES`：前端上传前置校验阈值，需与后端上传限制保持一致
 
+当前 alpha 的 CORS 与认证边界：
+
+- CORS 默认全开放（`AllowAnyOrigin/AllowAnyHeader/AllowAnyMethod`），降低自部署接入成本
+- 接口保护仍依赖 API Key（`Authorization: Bearer <API_KEY>`）
+- 当前不是 Cookie/Session 浏览器会话认证
+- 后续若进入更严格部署场景，可切换为来源白名单模式
+
 ### 3.2 Local 模式
 
 - `Storage__Provider=local`

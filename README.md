@@ -178,6 +178,9 @@ curl -X POST "http://localhost:5121/mcp" \
 - 默认最简模式：Local 存储 + SQLite
 - S3-compatible 模式：对象存储走 S3，数据库仍使用 SQLite
 - 前端通过 `VITE_API_BASE_URL` 显式访问后端 API（compose 里由 `FRONTEND_VITE_API_BASE_URL` 注入）
+- 后端 CORS 在当前 alpha 默认全开放（`AllowAnyOrigin/AllowAnyHeader/AllowAnyMethod`），优先降低自部署接入成本
+- 当前安全边界依赖 API Key（`Authorization: Bearer <API_KEY>`），不是 Cookie/Session 浏览器会话认证
+- 后续进入更严格部署场景时，可再切换为来源白名单模式
 - 推荐用环境变量覆盖敏感配置，不要把真实密钥写入仓库
 - 若需要统一域名 / HTTPS / 反向代理，请在仓库外层自行配置（Nginx/Caddy/Traefik 等）
 
