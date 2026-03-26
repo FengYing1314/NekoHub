@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, h, reactive, ref, watch } from 'vue';
-import type { DataTableColumns, SelectOption } from 'naive-ui';
+import type { DataTableColumns } from 'naive-ui';
 import {
-  NAlert,
   NButton,
   NCard,
   NDataTable,
@@ -15,7 +14,6 @@ import {
   NInput,
   NPopconfirm,
   NResult,
-  NSelect,
   NSpace,
   NTag,
   useMessage,
@@ -30,9 +28,7 @@ import {
   buildAssetContentUrl,
   deleteAsset,
   getAsset,
-  listSkills,
   patchAsset,
-  runAssetSkill,
 } from '../../api/assets/assets.api';
 import { extractApiErrorMessage } from '../../api/client/error';
 import { useIsMobile } from '../../composables/useIsMobile';
@@ -41,7 +37,6 @@ import type {
   AssetDerivativeSummaryResponse,
   AssetLatestExecutionStepSummaryResponse,
   AssetResponse,
-  AssetSkillSummaryResponse,
   PatchAssetInput,
 } from '../../types/assets';
 import { formatDateTime, formatFileSize } from '../../utils/format';
@@ -66,14 +61,9 @@ const deleting = ref(false);
 const savingMetadata = ref(false);
 const updatingVisibility = ref(false);
 const editingMetadata = ref(false);
-const loadingSkills = ref(false);
-const runningSkill = ref(false);
 const loadErrorMessage = ref('');
-const skillLoadErrorMessage = ref('');
 const asset = ref<AssetResponse | null>(null);
 const initialMetadata = ref<EditableAssetMetadata | null>(null);
-const availableSkills = ref<AssetSkillSummaryResponse[]>([]);
-const selectedSkillName = ref('');
 
 const metadataForm = reactive({
   originalFileName: '',
@@ -87,7 +77,6 @@ const isEmpty = computed(() => !loading.value && !hasLoadError.value && !asset.v
 const derivatives = computed<AssetDerivativeSummaryResponse[]>(() => asset.value?.derivatives ?? []);
 const structuredResults = computed(() => asset.value?.structuredResults ?? []);
 const hasMetadataChanges = computed(() => Object.keys(buildMetadataPatchPayload()).length > 0);
-const hasSkillLoadError = computed(() => skillLoadErrorMessage.value.length > 0);
 const isPublicAsset = computed(() => asset.value?.isPublic ?? false);
 const visibilityDescription = computed(() => (
   isPublicAsset.value
@@ -106,15 +95,6 @@ const publicUrlDisplay = computed(() => {
 
   return asset.value.publicUrl || contentUrl.value;
 });
-const skillOptions = computed<SelectOption[]>(() => (
-  availableSkills.value.map((skill) => ({
-    label: skill.skillName,
-    value: skill.skillName,
-  }))
-));
-const selectedSkill = computed(() => (
-  availableSkills.value.find((skill) => skill.skillName === selectedSkillName.value) ?? null
-));
 const descriptionColumns = computed(() => (isMobile.value ? 1 : 2));
 
 const contentUrl = computed(() => {
@@ -268,33 +248,6 @@ async function loadAsset(): Promise<void> {
   }
 }
 
-async function loadSkills(force = false): Promise<void> {
-  if (loadingSkills.value) {
-    return;
-  }
-
-  if (!force && availableSkills.value.length > 0 && !skillLoadErrorMessage.value) {
-    return;
-  }
-
-  loadingSkills.value = true;
-  skillLoadErrorMessage.value = '';
-
-  try {
-    const skills = await listSkills();
-    availableSkills.value = skills;
-    selectedSkillName.value = skills.some((skill) => skill.skillName === selectedSkillName.value)
-      ? selectedSkillName.value
-      : (skills[0]?.skillName ?? '');
-  } catch (error) {
-    availableSkills.value = [];
-    selectedSkillName.value = '';
-    skillLoadErrorMessage.value = extractApiErrorMessage(error);
-  } finally {
-    loadingSkills.value = false;
-  }
-}
-
 async function handleDelete(): Promise<void> {
   if (!asset.value) {
     return;
@@ -383,48 +336,6 @@ async function handleVisibilityToggle(): Promise<void> {
   }
 }
 
-function handleSkillSelection(nextValue: string | number | null): void {
-  selectedSkillName.value = typeof nextValue === 'string' ? nextValue : '';
-}
-
-async function handleRunSkill(): Promise<void> {
-  if (!asset.value) {
-    return;
-  }
-
-  if (!selectedSkillName.value) {
-    message.warning(t('asset.detail.skillRun.selectRequired'));
-    return;
-  }
-
-  runningSkill.value = true;
-
-  try {
-    const runResult = await runAssetSkill(asset.value.id, selectedSkillName.value);
-    let latestAsset: AssetResponse | null = null;
-    loadErrorMessage.value = '';
-
-    try {
-      latestAsset = await getAsset(runResult.asset.id);
-    } catch {
-      latestAsset = {
-        ...asset.value,
-        ...runResult.asset,
-      };
-      message.warning(t('asset.detail.skillRun.refreshWarning'));
-    }
-
-    if (latestAsset) {
-      asset.value = latestAsset;
-    }
-    message.success(t('asset.detail.skillRun.runSuccess'));
-  } catch (error) {
-    message.error(`${t('asset.detail.skillRun.runFailed')}: ${extractApiErrorMessage(error)}`);
-  } finally {
-    runningSkill.value = false;
-  }
-}
-
 function openExternal(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer');
 }
@@ -442,7 +353,6 @@ watch(
     exitMetadataEdit();
     clearMetadataForm();
     void loadAsset();
-    void loadSkills();
   },
   { immediate: true },
 );
@@ -506,7 +416,7 @@ watch(
             size="small"
             ghost
             type="primary"
-            :disabled="updatingVisibility || runningSkill"
+            :disabled="updatingVisibility"
             @click="startMetadataEdit"
           >
             {{ t('asset.detail.metadataEdit.editAction') }}
@@ -527,7 +437,7 @@ watch(
                   ghost
                   type="primary"
                   :loading="updatingVisibility"
-                  :disabled="editingMetadata || savingMetadata || loading || runningSkill"
+                  :disabled="editingMetadata || savingMetadata || loading"
                   @click="handleVisibilityToggle"
                 >
                   {{
@@ -676,67 +586,6 @@ watch(
         </div>
       </n-card>
 
-      <n-card :title="t('asset.detail.skillRun.title')" :loading="loading" class="section-card" size="small">
-        <template #header-extra>
-          <n-button text size="small" :loading="loadingSkills" @click="loadSkills(true)">
-            {{ t('common.refresh') }}
-          </n-button>
-        </template>
-
-        <n-space vertical :size="12">
-          <div class="metadata-edit-hint">{{ t('asset.detail.skillRun.hint') }}</div>
-
-          <n-alert v-if="hasSkillLoadError" type="warning" :show-icon="false">
-            <div class="skill-alert">
-              <span>{{ t('asset.detail.skillRun.skillsLoadFailed') }}: {{ skillLoadErrorMessage }}</span>
-              <n-button text size="small" :loading="loadingSkills" @click="loadSkills(true)">
-                {{ t('common.retry') }}
-              </n-button>
-            </div>
-          </n-alert>
-
-          <n-empty
-            v-if="!loadingSkills && availableSkills.length === 0"
-            :description="t('asset.detail.skillRun.noSkills')"
-          />
-
-          <n-form v-else label-placement="top">
-            <n-form-item :label="t('asset.detail.skillRun.selectLabel')">
-              <n-select
-                :value="selectedSkillName"
-                :options="skillOptions"
-                :loading="loadingSkills"
-                :disabled="loading || runningSkill || editingMetadata || savingMetadata || updatingVisibility || deleting"
-                @update:value="handleSkillSelection"
-              />
-            </n-form-item>
-
-            <div v-if="selectedSkill" class="skill-meta-block">
-              <div class="section-label">{{ t('asset.detail.skillRun.descriptionLabel') }}</div>
-              <div class="skill-description">{{ selectedSkill.description }}</div>
-              <div v-if="selectedSkill.steps.length > 0" class="metadata-edit-hint">
-                {{ t('asset.detail.skillRun.stepsLabel') }}{{ selectedSkill.steps.join(' / ') }}
-              </div>
-            </div>
-
-            <n-space wrap>
-              <n-button
-                type="primary"
-                :loading="runningSkill"
-                :disabled="loading || !selectedSkillName || loadingSkills || editingMetadata || savingMetadata || updatingVisibility || deleting"
-                @click="handleRunSkill"
-              >
-                {{
-                  runningSkill
-                    ? t('asset.detail.skillRun.runningAction')
-                    : t('asset.detail.skillRun.runAction')
-                }}
-              </n-button>
-            </n-space>
-          </n-form>
-        </n-space>
-      </n-card>
-
       <n-card :title="t('asset.detail.latestExecutionSummary')" :loading="loading" class="section-card">
         <n-empty
           v-if="!asset || !asset.latestExecutionSummary"
@@ -782,7 +631,7 @@ watch(
             @positive-click="handleDelete"
           >
             <template #trigger>
-              <n-button type="error" :loading="deleting" :disabled="runningSkill">
+              <n-button type="error" :loading="deleting">
                 {{ t('common.delete') }}
               </n-button>
             </template>
@@ -885,25 +734,6 @@ watch(
 
 .muted-text {
   color: #6b7280;
-}
-
-.skill-alert {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.skill-meta-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.skill-description {
-  color: #111827;
-  line-height: 1.6;
 }
 
 .table-wrapper {
