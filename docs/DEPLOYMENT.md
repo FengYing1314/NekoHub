@@ -4,10 +4,10 @@
 
 - Local 模式
   - 存储：本地文件系统
-  - 数据库：SQLite
+  - 数据库：推荐 PostgreSQL（SQLite 仅轻量开发）
 - S3-compatible 模式
   - 存储：S3-compatible（例如 MinIO）
-  - 数据库：SQLite 或 PostgreSQL
+  - 数据库：推荐 PostgreSQL（SQLite 仅轻量开发）
 
 ## 2. 前置要求
 
@@ -38,6 +38,7 @@ PostgreSQL：
 
 - `Persistence__Database__Provider=postgresql`
 - `Persistence__Database__ConnectionString=Host=...;Port=5432;Database=...;Username=...;Password=...`
+- `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_PORT`（compose 默认 PostgreSQL 服务）
 
 S3-compatible：
 
@@ -97,7 +98,7 @@ docker run --rm -p 5121:8080 \
 
 ## 6. Docker Compose
 
-Local 模式：
+默认（推荐，PostgreSQL 持久化）：
 
 ```bash
 cp .env.example .env
@@ -105,6 +106,11 @@ cp .env.example .env
 docker compose up -d
 curl http://localhost:5121/api/v1/system/ping
 ```
+
+SQLite 轻量模式（可选）：
+
+- 将 `.env` 里的 `Persistence__Database__Provider` 改为 `sqlite`
+- 将 `Persistence__Database__ConnectionString` 改为 `Data Source=/app/storage/nekohub.db`
 
 S3 模式（MinIO 示例）：
 
@@ -117,6 +123,7 @@ docker compose --profile s3 up --build minio minio-init nekohub-s3
 - 前端：`http://localhost:5173`
 - NekoHub Local：`http://localhost:5121`
 - NekoHub S3 示例：`http://localhost:5122`
+- PostgreSQL：`localhost:5432`（TCP）
 - MinIO API：`http://localhost:9000`
 - MinIO Console：`http://localhost:9001`
 
@@ -149,10 +156,13 @@ curl -X POST "http://localhost:5121/mcp" \
 
 ## 8. 存储 profile 与 runtime 说明
 
+- 全新数据库启动时，如果没有 default write profile，会按当前 `Storage:Provider` 自动 bootstrap 一个最小默认写入 profile（local/s3-compatible）
+- 该 bootstrap 仅用于初始化 DB 管理面，不会立即切换全局 runtime provider
 - 上传支持可选 `storageProviderProfileId`
 - 未指定时优先使用 DB 默认写入 profile，再回退配置默认 provider
 - 读取优先按资产绑定 profile 解析，旧资产按历史字段回退
 - `github-repo` 的 `browse/upsert` 属于显式管理 API，不切换全局 runtime provider
+- Provider 管理入口：前端 `/providers`
 
 ## 9. 生产环境最小建议
 

@@ -56,6 +56,7 @@ type AlertType = 'success' | 'warning' | 'info';
 type ProfileModalMode = 'create' | 'edit';
 type ProfileActionType = 'set-default' | 'delete';
 type S3VendorPresetId = 'custom' | 'aws-s3' | 'minio' | 'cloudflare-r2' | 'backblaze-b2' | 'alibaba-oss';
+type GitHubVisibilityPolicy = 'public-only' | 'private-token';
 
 interface AlignmentPresentation {
   type: AlertType;
@@ -166,6 +167,14 @@ const profileForm = reactive({
   s3AccessKey: '',
   s3SecretKey: '',
   s3VendorPreset: 'custom' as S3VendorPresetId,
+  githubOwner: '',
+  githubRepo: '',
+  githubRef: 'main',
+  githubBasePath: '',
+  githubApiBaseUrl: '',
+  githubRawBaseUrl: '',
+  githubVisibilityPolicy: 'public-only' as GitHubVisibilityPolicy,
+  githubToken: '',
 });
 
 const providerTypeOptions = computed<SelectOption[]>(() => [
@@ -177,9 +186,13 @@ const providerTypeOptions = computed<SelectOption[]>(() => [
     label: t('settings.storage.providers.s3Compatible'),
     value: 's3-compatible',
   },
+  {
+    label: t('settings.storage.providers.githubRepo'),
+    value: 'github-repo',
+  },
 ]);
 
-const supportedFormProviderTypes = new Set<StorageProviderType>(['local', 's3-compatible']);
+const supportedFormProviderTypes = new Set<StorageProviderType>(['local', 's3-compatible', 'github-repo']);
 
 const s3VendorPresetOptions = computed<SelectOption[]>(() => [
   {
@@ -205,6 +218,17 @@ const s3VendorPresetOptions = computed<SelectOption[]>(() => [
   {
     label: t('providers.s3Presets.options.alibabaOss'),
     value: 'alibaba-oss',
+  },
+]);
+
+const githubVisibilityPolicyOptions = computed<SelectOption[]>(() => [
+  {
+    label: t('settings.storage.form.github.visibilityPolicies.publicOnly'),
+    value: 'public-only',
+  },
+  {
+    label: t('settings.storage.form.github.visibilityPolicies.privateToken'),
+    value: 'private-token',
   },
 ]);
 
@@ -511,6 +535,12 @@ const selectedS3PresetPublicBaseUrlHint = computed(() => {
   return t(selectedS3PresetDefinition.value.publicBaseUrlHintKey);
 });
 
+const isS3CompatibleSelected = computed(() => profileForm.providerType === 's3-compatible');
+const isGitHubRepoSelected = computed(() => profileForm.providerType === 'github-repo');
+const profileModalStyle = computed(() => ({
+  width: isMobile.value ? 'calc(100vw - 20px)' : '760px',
+}));
+
 function isProviderTypeSupportedForForm(providerType: string): providerType is StorageProviderType {
   return supportedFormProviderTypes.has(providerType as StorageProviderType);
 }
@@ -719,6 +749,14 @@ function resetProfileForm(): void {
   profileForm.s3AccessKey = '';
   profileForm.s3SecretKey = '';
   profileForm.s3VendorPreset = 'custom';
+  profileForm.githubOwner = '';
+  profileForm.githubRepo = '';
+  profileForm.githubRef = 'main';
+  profileForm.githubBasePath = '';
+  profileForm.githubApiBaseUrl = '';
+  profileForm.githubRawBaseUrl = '';
+  profileForm.githubVisibilityPolicy = 'public-only';
+  profileForm.githubToken = '';
   s3ForcePathStyleTouched.value = false;
   s3EndpointHostHint.value = '';
 }
@@ -786,6 +824,19 @@ function openEditProfileModal(profile: StorageProviderProfileResponse): void {
     profileForm.s3Endpoint = '';
     s3EndpointHostHint.value = profile.configurationSummary.endpointHost ?? '';
     s3ForcePathStyleTouched.value = true;
+  }
+
+  if (profile.providerType === 'github-repo') {
+    profileForm.githubOwner = profile.configurationSummary.owner ?? '';
+    profileForm.githubRepo = profile.configurationSummary.repository ?? '';
+    profileForm.githubRef = profile.configurationSummary.reference ?? 'main';
+    profileForm.githubBasePath = profile.configurationSummary.basePath ?? '';
+    profileForm.githubApiBaseUrl = profile.configurationSummary.apiBaseUrl ?? '';
+    profileForm.githubRawBaseUrl = profile.configurationSummary.rawBaseUrl ?? '';
+    profileForm.githubVisibilityPolicy = profile.configurationSummary.visibilityPolicy === 'private-token'
+      ? 'private-token'
+      : 'public-only';
+    profileForm.githubToken = '';
   }
 
   profileModalVisible.value = true;
@@ -893,48 +944,100 @@ function validateProfileForm(): string | null {
     return null;
   }
 
-  const endpoint = profileForm.s3Endpoint.trim();
-  const bucket = profileForm.s3Bucket.trim();
-  const region = profileForm.s3Region.trim();
+  if (profileForm.providerType === 's3-compatible') {
+    const endpoint = profileForm.s3Endpoint.trim();
+    const bucket = profileForm.s3Bucket.trim();
+    const region = profileForm.s3Region.trim();
 
-  if (!endpoint) {
-    return t('settings.storage.validation.s3EndpointRequired');
-  }
-
-  if (!isAbsoluteHttpUrl(endpoint)) {
-    return t('settings.storage.validation.s3EndpointInvalid');
-  }
-
-  if (!bucket) {
-    return t('settings.storage.validation.s3BucketRequired');
-  }
-
-  if (!region) {
-    return t('settings.storage.validation.s3RegionRequired');
-  }
-
-  const s3PublicBaseUrl = profileForm.s3PublicBaseUrl.trim();
-  if (s3PublicBaseUrl && !isAbsoluteHttpUrl(s3PublicBaseUrl)) {
-    return t('settings.storage.validation.publicBaseUrlInvalid');
-  }
-
-  const accessKey = profileForm.s3AccessKey.trim();
-  const secretKey = profileForm.s3SecretKey.trim();
-
-  if (!isEditMode.value) {
-    if (!accessKey) {
-      return t('settings.storage.validation.s3AccessKeyRequired');
+    if (!endpoint) {
+      return t('settings.storage.validation.s3EndpointRequired');
     }
 
-    if (!secretKey) {
-      return t('settings.storage.validation.s3SecretKeyRequired');
+    if (!isAbsoluteHttpUrl(endpoint)) {
+      return t('settings.storage.validation.s3EndpointInvalid');
+    }
+
+    if (!bucket) {
+      return t('settings.storage.validation.s3BucketRequired');
+    }
+
+    if (!region) {
+      return t('settings.storage.validation.s3RegionRequired');
+    }
+
+    const s3PublicBaseUrl = profileForm.s3PublicBaseUrl.trim();
+    if (s3PublicBaseUrl && !isAbsoluteHttpUrl(s3PublicBaseUrl)) {
+      return t('settings.storage.validation.publicBaseUrlInvalid');
+    }
+
+    const accessKey = profileForm.s3AccessKey.trim();
+    const secretKey = profileForm.s3SecretKey.trim();
+
+    if (!isEditMode.value) {
+      if (!accessKey) {
+        return t('settings.storage.validation.s3AccessKeyRequired');
+      }
+
+      if (!secretKey) {
+        return t('settings.storage.validation.s3SecretKeyRequired');
+      }
+
+      return null;
+    }
+
+    if ((accessKey && !secretKey) || (!accessKey && secretKey)) {
+      return t('settings.storage.validation.s3SecretPairRequired');
     }
 
     return null;
   }
 
-  if ((accessKey && !secretKey) || (!accessKey && secretKey)) {
-    return t('settings.storage.validation.s3SecretPairRequired');
+  const owner = profileForm.githubOwner.trim();
+  const repo = profileForm.githubRepo.trim();
+  const refValue = profileForm.githubRef.trim();
+  const basePath = profileForm.githubBasePath.trim();
+  const apiBaseUrl = profileForm.githubApiBaseUrl.trim();
+  const rawBaseUrl = profileForm.githubRawBaseUrl.trim();
+  const token = profileForm.githubToken.trim();
+
+  if (!owner) {
+    return t('settings.storage.validation.githubOwnerRequired');
+  }
+
+  if (!isValidGitHubSegment(owner)) {
+    return t('settings.storage.validation.githubOwnerInvalid');
+  }
+
+  if (!repo) {
+    return t('settings.storage.validation.githubRepoRequired');
+  }
+
+  if (!isValidGitHubSegment(repo)) {
+    return t('settings.storage.validation.githubRepoInvalid');
+  }
+
+  if (!refValue) {
+    return t('settings.storage.validation.githubRefRequired');
+  }
+
+  if (!isValidGitHubRef(refValue)) {
+    return t('settings.storage.validation.githubRefInvalid');
+  }
+
+  if (basePath && !isValidGitHubPathPrefix(basePath)) {
+    return t('settings.storage.validation.githubBasePathInvalid');
+  }
+
+  if (apiBaseUrl && !isAbsoluteHttpUrl(apiBaseUrl)) {
+    return t('settings.storage.validation.githubApiBaseUrlInvalid');
+  }
+
+  if (rawBaseUrl && !isAbsoluteHttpUrl(rawBaseUrl)) {
+    return t('settings.storage.validation.githubRawBaseUrlInvalid');
+  }
+
+  if (!isEditMode.value && profileForm.githubVisibilityPolicy === 'private-token' && !token) {
+    return t('settings.storage.validation.githubTokenRequiredForPrivate');
   }
 
   return null;
@@ -986,6 +1089,76 @@ function buildS3SecretConfiguration(): Record<string, unknown> {
   };
 }
 
+function isValidGitHubSegment(value: string): boolean {
+  return /^[A-Za-z0-9._-]+$/.test(value);
+}
+
+function isValidGitHubRef(value: string): boolean {
+  return !/[\\\s]/.test(value);
+}
+
+function isValidGitHubPathPrefix(value: string): boolean {
+  const normalized = value.trim().replaceAll('\\', '/').replace(/^\/+|\/+$/g, '');
+  if (!normalized) {
+    return true;
+  }
+
+  if (normalized.includes('//')) {
+    return false;
+  }
+
+  return normalized.split('/').every((segment) => segment !== '.' && segment !== '..' && segment.length > 0);
+}
+
+function buildGitHubRepoConfiguration(): Record<string, unknown> {
+  const configuration: Record<string, unknown> = {
+    owner: profileForm.githubOwner.trim(),
+    repo: profileForm.githubRepo.trim(),
+    ref: profileForm.githubRef.trim(),
+    visibilityPolicy: profileForm.githubVisibilityPolicy,
+    allowDelete: false,
+  };
+
+  const basePath = normalizeOptionalString(profileForm.githubBasePath);
+  if (basePath) {
+    configuration.basePath = basePath;
+  }
+
+  const apiBaseUrl = normalizeOptionalString(profileForm.githubApiBaseUrl);
+  if (apiBaseUrl) {
+    configuration.apiBaseUrl = apiBaseUrl;
+  }
+
+  const rawBaseUrl = normalizeOptionalString(profileForm.githubRawBaseUrl);
+  if (rawBaseUrl) {
+    configuration.rawBaseUrl = rawBaseUrl;
+  }
+
+  return configuration;
+}
+
+function buildGitHubRepoSecretConfiguration(): Record<string, unknown> {
+  return {
+    token: profileForm.githubToken.trim(),
+  };
+}
+
+function buildProfileConfiguration(providerType: StorageProviderType): Record<string, unknown> {
+  if (providerType === 'local') {
+    return buildLocalConfiguration();
+  }
+
+  if (providerType === 's3-compatible') {
+    return buildS3Configuration();
+  }
+
+  if (providerType === 'github-repo') {
+    return buildGitHubRepoConfiguration();
+  }
+
+  throw new Error(`Unsupported provider type for editable form: ${providerType}`);
+}
+
 async function submitProfileModal(): Promise<void> {
   const validationError = validateProfileForm();
   if (validationError) {
@@ -1002,13 +1175,18 @@ async function submitProfileModal(): Promise<void> {
         displayName: normalizeOptionalString(profileForm.displayName),
         providerType: profileForm.providerType,
         isEnabled: profileForm.isEnabled,
-        configuration: profileForm.providerType === 'local'
-          ? buildLocalConfiguration()
-          : buildS3Configuration(),
+        configuration: buildProfileConfiguration(profileForm.providerType),
       };
 
       if (profileForm.providerType === 's3-compatible') {
         createRequest.secretConfiguration = buildS3SecretConfiguration();
+      }
+
+      if (profileForm.providerType === 'github-repo') {
+        const token = profileForm.githubToken.trim();
+        if (token) {
+          createRequest.secretConfiguration = buildGitHubRepoSecretConfiguration();
+        }
       }
 
       await createStorageProviderProfile(createRequest);
@@ -1023,9 +1201,7 @@ async function submitProfileModal(): Promise<void> {
         name: profileForm.name.trim(),
         displayName: normalizeOptionalString(profileForm.displayName),
         isEnabled: profileForm.isEnabled,
-        configuration: profileForm.providerType === 'local'
-          ? buildLocalConfiguration()
-          : buildS3Configuration(),
+        configuration: buildProfileConfiguration(profileForm.providerType),
       };
 
       if (profileForm.providerType === 's3-compatible') {
@@ -1033,6 +1209,13 @@ async function submitProfileModal(): Promise<void> {
         const nextSecretKey = profileForm.s3SecretKey.trim();
         if (nextAccessKey && nextSecretKey) {
           updateRequest.secretConfiguration = buildS3SecretConfiguration();
+        }
+      }
+
+      if (profileForm.providerType === 'github-repo') {
+        const nextToken = profileForm.githubToken.trim();
+        if (nextToken) {
+          updateRequest.secretConfiguration = buildGitHubRepoSecretConfiguration();
         }
       }
 
@@ -1278,6 +1461,9 @@ onMounted(() => {
               </n-space>
               <span class="provider-legend-meta">{{ profileCountText }}</span>
             </div>
+            <div class="provider-specific-hint">
+              {{ t('providers.profileManagement.providerSpecificHint') }}
+            </div>
 
             <n-empty
               v-if="!hasProfiles"
@@ -1303,134 +1489,231 @@ onMounted(() => {
       v-model:show="profileModalVisible"
       preset="card"
       class="profile-modal"
+      :style="profileModalStyle"
       :title="profileModalTitle"
       :mask-closable="!profileModalSubmitting"
       :closable="!profileModalSubmitting"
     >
-      <n-form label-placement="top">
-        <n-form-item :label="t('settings.storage.form.name')">
-          <n-input
-            v-model:value="profileForm.name"
-            :placeholder="t('settings.storage.form.namePlaceholder')"
-          />
-        </n-form-item>
+      <n-form label-placement="top" class="profile-form">
+          <section class="profile-form-section">
+            <h4 class="profile-form-section__title">{{ t('providers.modal.sections.basic') }}</h4>
+            <div class="profile-form-grid">
+              <n-form-item :label="t('settings.storage.form.name')">
+                <n-input
+                  v-model:value="profileForm.name"
+                  :placeholder="t('settings.storage.form.namePlaceholder')"
+                />
+              </n-form-item>
 
-        <n-form-item :label="t('settings.storage.form.displayName')">
-          <n-input
-            v-model:value="profileForm.displayName"
-            :placeholder="t('settings.storage.form.displayNamePlaceholder')"
-          />
-        </n-form-item>
+              <n-form-item :label="t('settings.storage.form.displayName')">
+                <n-input
+                  v-model:value="profileForm.displayName"
+                  :placeholder="t('settings.storage.form.displayNamePlaceholder')"
+                />
+              </n-form-item>
 
-        <n-form-item :label="t('settings.storage.form.providerType')">
-          <n-select
-            v-model:value="profileForm.providerType"
-            :options="providerTypeOptions"
-            :disabled="isEditMode"
-          />
-        </n-form-item>
+              <n-form-item :label="t('settings.storage.form.providerType')">
+                <n-select
+                  v-model:value="profileForm.providerType"
+                  :options="providerTypeOptions"
+                  :disabled="isEditMode"
+                />
+              </n-form-item>
 
-        <n-form-item :label="t('settings.storage.form.isEnabled')">
-          <n-switch v-model:value="profileForm.isEnabled" />
-        </n-form-item>
-
-        <template v-if="profileForm.providerType === 'local'">
-          <n-form-item :label="t('settings.storage.form.local.rootPath')">
-            <n-input
-              v-model:value="profileForm.localRootPath"
-              :placeholder="t('settings.storage.form.local.rootPathPlaceholder')"
-            />
-          </n-form-item>
-
-          <n-form-item :label="t('settings.storage.form.local.publicBaseUrl')">
-            <n-input
-              v-model:value="profileForm.localPublicBaseUrl"
-              :placeholder="t('settings.storage.form.local.publicBaseUrlPlaceholder')"
-            />
-          </n-form-item>
-        </template>
-
-        <template v-else>
-          <n-form-item :label="t('providers.s3Presets.label')">
-            <n-space class="s3-preset-row" :size="8" :wrap="true">
-              <n-select
-                v-model:value="profileForm.s3VendorPreset"
-                class="s3-preset-select"
-                :options="s3VendorPresetOptions"
-              />
-              <n-button
-                size="small"
-                secondary
-                :disabled="profileForm.s3VendorPreset === 'custom'"
-                @click="applySelectedS3Preset"
-              >
-                {{ t('providers.s3Presets.applyToEmpty') }}
-              </n-button>
-            </n-space>
-            <div v-if="selectedS3PresetDefinition" class="form-hint form-hint--stack">
-              <div>{{ t('providers.s3Presets.endpointHint', { endpoint: selectedS3PresetDefinition.endpoint }) }}</div>
-              <div>{{ selectedS3PresetRegionHint }}</div>
-              <div>{{ selectedS3PresetPublicBaseUrlHint }}</div>
+              <n-form-item :label="t('settings.storage.form.isEnabled')">
+                <n-switch v-model:value="profileForm.isEnabled" />
+              </n-form-item>
             </div>
-          </n-form-item>
+          </section>
 
-          <n-form-item :label="t('settings.storage.form.s3.endpoint')">
-            <n-input
-              v-model:value="profileForm.s3Endpoint"
-              :placeholder="t('settings.storage.form.s3.endpointPlaceholder')"
-            />
-            <div v-if="isEditMode && s3EndpointHostHint" class="form-hint">
-              {{ t('settings.storage.form.s3.endpointHint', { endpointHost: s3EndpointHostHint }) }}
+          <section v-if="profileForm.providerType === 'local'" class="profile-form-section">
+            <h4 class="profile-form-section__title">{{ t('providers.modal.sections.local') }}</h4>
+            <div class="profile-form-grid">
+              <n-form-item :label="t('settings.storage.form.local.rootPath')">
+                <n-input
+                  v-model:value="profileForm.localRootPath"
+                  :placeholder="t('settings.storage.form.local.rootPathPlaceholder')"
+                />
+              </n-form-item>
+
+              <n-form-item :label="t('settings.storage.form.local.publicBaseUrl')">
+                <n-input
+                  v-model:value="profileForm.localPublicBaseUrl"
+                  :placeholder="t('settings.storage.form.local.publicBaseUrlPlaceholder')"
+                />
+              </n-form-item>
             </div>
-          </n-form-item>
+          </section>
 
-          <n-form-item :label="t('settings.storage.form.s3.bucket')">
-            <n-input
-              v-model:value="profileForm.s3Bucket"
-              :placeholder="t('settings.storage.form.s3.bucketPlaceholder')"
-            />
-          </n-form-item>
+          <section v-else-if="isS3CompatibleSelected" class="profile-form-section">
+            <h4 class="profile-form-section__title">{{ t('providers.modal.sections.s3') }}</h4>
 
-          <n-form-item :label="t('settings.storage.form.s3.region')">
-            <n-input
-              v-model:value="profileForm.s3Region"
-              :placeholder="t('settings.storage.form.s3.regionPlaceholder')"
-            />
-          </n-form-item>
+            <div class="s3-preset-panel">
+              <div class="s3-preset-panel__title">{{ t('providers.s3Presets.label') }}</div>
+              <div class="s3-preset-panel__description">{{ t('providers.s3Presets.description') }}</div>
+              <n-space class="s3-preset-row" :size="8" :wrap="true">
+                <n-select
+                  v-model:value="profileForm.s3VendorPreset"
+                  class="s3-preset-select"
+                  :consistent-menu-width="false"
+                  :options="s3VendorPresetOptions"
+                />
+                <n-button
+                  size="small"
+                  secondary
+                  :disabled="profileForm.s3VendorPreset === 'custom'"
+                  @click="applySelectedS3Preset"
+                >
+                  {{ t('providers.s3Presets.applyToEmpty') }}
+                </n-button>
+              </n-space>
+              <div v-if="selectedS3PresetDefinition" class="form-hint form-hint--stack">
+                <div>{{ t('providers.s3Presets.endpointHint', { endpoint: selectedS3PresetDefinition.endpoint }) }}</div>
+                <div>{{ selectedS3PresetRegionHint }}</div>
+                <div>{{ selectedS3PresetPublicBaseUrlHint }}</div>
+              </div>
+            </div>
 
-          <n-form-item :label="t('settings.storage.form.s3.publicBaseUrl')">
-            <n-input
-              v-model:value="profileForm.s3PublicBaseUrl"
-              :placeholder="t('settings.storage.form.s3.publicBaseUrlPlaceholder')"
-            />
-          </n-form-item>
+            <div class="profile-form-grid">
+              <n-form-item :label="t('settings.storage.form.s3.endpoint')">
+                <n-input
+                  v-model:value="profileForm.s3Endpoint"
+                  :placeholder="t('settings.storage.form.s3.endpointPlaceholder')"
+                />
+                <div v-if="isEditMode && s3EndpointHostHint" class="form-hint">
+                  {{ t('settings.storage.form.s3.endpointHint', { endpointHost: s3EndpointHostHint }) }}
+                </div>
+              </n-form-item>
 
-          <n-form-item :label="t('settings.storage.form.s3.forcePathStyle')">
-            <n-switch :value="profileForm.s3ForcePathStyle" @update:value="handleS3ForcePathStyleChange" />
-          </n-form-item>
+              <n-form-item :label="t('settings.storage.form.s3.bucket')">
+                <n-input
+                  v-model:value="profileForm.s3Bucket"
+                  :placeholder="t('settings.storage.form.s3.bucketPlaceholder')"
+                />
+              </n-form-item>
 
-          <n-alert v-if="isEditMode" type="info" :show-icon="false" class="form-alert">
-            {{ t('settings.storage.form.s3.secretUpdateHint') }}
-          </n-alert>
+              <n-form-item :label="t('settings.storage.form.s3.region')">
+                <n-input
+                  v-model:value="profileForm.s3Region"
+                  :placeholder="t('settings.storage.form.s3.regionPlaceholder')"
+                />
+              </n-form-item>
 
-          <n-form-item :label="t('settings.storage.form.s3.accessKey')">
-            <n-input
-              v-model:value="profileForm.s3AccessKey"
-              type="password"
-              show-password-on="mousedown"
-              :placeholder="t('settings.storage.form.s3.accessKeyPlaceholder')"
-            />
-          </n-form-item>
+              <n-form-item :label="t('settings.storage.form.s3.publicBaseUrl')">
+                <n-input
+                  v-model:value="profileForm.s3PublicBaseUrl"
+                  :placeholder="t('settings.storage.form.s3.publicBaseUrlPlaceholder')"
+                />
+              </n-form-item>
 
-          <n-form-item :label="t('settings.storage.form.s3.secretKey')">
-            <n-input
-              v-model:value="profileForm.s3SecretKey"
-              type="password"
-              show-password-on="mousedown"
-              :placeholder="t('settings.storage.form.s3.secretKeyPlaceholder')"
-            />
-          </n-form-item>
-        </template>
+              <n-form-item :label="t('settings.storage.form.s3.forcePathStyle')">
+                <n-switch :value="profileForm.s3ForcePathStyle" @update:value="handleS3ForcePathStyleChange" />
+              </n-form-item>
+            </div>
+
+            <n-alert v-if="isEditMode" type="info" :show-icon="false" class="form-alert">
+              {{ t('settings.storage.form.s3.secretUpdateHint') }}
+            </n-alert>
+
+            <div class="profile-form-grid">
+              <n-form-item :label="t('settings.storage.form.s3.accessKey')">
+                <n-input
+                  v-model:value="profileForm.s3AccessKey"
+                  type="password"
+                  show-password-on="mousedown"
+                  :placeholder="t('settings.storage.form.s3.accessKeyPlaceholder')"
+                />
+              </n-form-item>
+
+              <n-form-item :label="t('settings.storage.form.s3.secretKey')">
+                <n-input
+                  v-model:value="profileForm.s3SecretKey"
+                  type="password"
+                  show-password-on="mousedown"
+                  :placeholder="t('settings.storage.form.s3.secretKeyPlaceholder')"
+                />
+              </n-form-item>
+            </div>
+          </section>
+
+          <section v-else-if="isGitHubRepoSelected" class="profile-form-section">
+            <h4 class="profile-form-section__title">{{ t('providers.modal.sections.githubRepo') }}</h4>
+
+            <div class="profile-provider-meta">
+              <n-space :size="6" :wrap="true">
+                <n-tag size="small" type="warning" :bordered="false">{{ t('providers.badges.experimental') }}</n-tag>
+                <n-tag size="small" type="info" :bordered="false">{{ t('providers.badges.platformBacked') }}</n-tag>
+                <n-tag size="small" type="warning" :bordered="false">{{ t('providers.badges.notRecommendedPrimary') }}</n-tag>
+              </n-space>
+              <div class="form-hint">{{ t('providers.githubRepo.formHint') }}</div>
+            </div>
+
+            <div class="profile-form-grid">
+              <n-form-item :label="t('settings.storage.form.github.owner')">
+                <n-input
+                  v-model:value="profileForm.githubOwner"
+                  :placeholder="t('settings.storage.form.github.ownerPlaceholder')"
+                />
+              </n-form-item>
+
+              <n-form-item :label="t('settings.storage.form.github.repo')">
+                <n-input
+                  v-model:value="profileForm.githubRepo"
+                  :placeholder="t('settings.storage.form.github.repoPlaceholder')"
+                />
+              </n-form-item>
+
+              <n-form-item :label="t('settings.storage.form.github.ref')">
+                <n-input
+                  v-model:value="profileForm.githubRef"
+                  :placeholder="t('settings.storage.form.github.refPlaceholder')"
+                />
+              </n-form-item>
+
+              <n-form-item :label="t('settings.storage.form.github.basePath')">
+                <n-input
+                  v-model:value="profileForm.githubBasePath"
+                  :placeholder="t('settings.storage.form.github.basePathPlaceholder')"
+                />
+              </n-form-item>
+
+              <n-form-item :label="t('settings.storage.form.github.apiBaseUrl')">
+                <n-input
+                  v-model:value="profileForm.githubApiBaseUrl"
+                  :placeholder="t('settings.storage.form.github.apiBaseUrlPlaceholder')"
+                />
+              </n-form-item>
+
+              <n-form-item :label="t('settings.storage.form.github.rawBaseUrl')">
+                <n-input
+                  v-model:value="profileForm.githubRawBaseUrl"
+                  :placeholder="t('settings.storage.form.github.rawBaseUrlPlaceholder')"
+                />
+              </n-form-item>
+
+              <n-form-item :label="t('settings.storage.form.github.visibilityPolicy')">
+                <n-select
+                  v-model:value="profileForm.githubVisibilityPolicy"
+                  :options="githubVisibilityPolicyOptions"
+                />
+              </n-form-item>
+            </div>
+
+            <n-alert v-if="isEditMode" type="info" :show-icon="false" class="form-alert">
+              {{ t('settings.storage.form.github.secretUpdateHint') }}
+            </n-alert>
+
+            <div class="profile-form-grid">
+              <n-form-item :label="t('settings.storage.form.github.token')">
+                <n-input
+                  v-model:value="profileForm.githubToken"
+                  type="password"
+                  show-password-on="mousedown"
+                  :placeholder="t('settings.storage.form.github.tokenPlaceholder')"
+                />
+              </n-form-item>
+            </div>
+          </section>
       </n-form>
 
       <template #footer>
@@ -1509,6 +1792,14 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.provider-specific-hint {
+  margin-top: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
 .storage-table-wrapper {
   overflow-x: auto;
 }
@@ -1580,20 +1871,92 @@ onMounted(() => {
 }
 
 .profile-modal {
-  width: min(760px, calc(100vw - 24px));
+  margin: 30px auto;
+}
+
+.profile-modal :deep(.n-card) {
+  border-radius: 14px;
+}
+
+.profile-modal :deep(.n-card__content) {
+  padding: 20px 24px 16px;
+  max-height: min(74vh, 760px);
+  overflow-y: auto;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-form-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fbfbfd;
+  padding: 14px;
+}
+
+.profile-form-section__title {
+  margin: 0 0 12px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+}
+
+.profile-form-grid :deep(.n-form-item) {
+  margin-bottom: 8px;
 }
 
 .profile-modal-footer {
   width: 100%;
+  border-top: 1px solid #f0f2f5;
+  padding-top: 12px;
+}
+
+.profile-modal-footer :deep(.n-space) {
+  width: 100%;
+}
+
+.profile-provider-meta {
+  margin-bottom: 12px;
+}
+
+.s3-preset-panel {
+  border: 1px solid #dbe4f6;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 10px;
+  margin-bottom: 12px;
+  max-width: 560px;
+}
+
+.s3-preset-panel__title {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.s3-preset-panel__description {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .s3-preset-row {
-  width: 100%;
   align-items: center;
 }
 
 .s3-preset-select {
-  width: min(260px, 100%);
+  width: min(340px, 100%);
 }
 
 .form-hint {
@@ -1610,7 +1973,7 @@ onMounted(() => {
 }
 
 .form-alert {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 @media (max-width: 1024px) {
@@ -1628,6 +1991,24 @@ onMounted(() => {
     margin-bottom: 8px;
   }
 
+  .profile-modal {
+    margin: 8px auto;
+  }
+
+  .profile-modal :deep(.n-card__content) {
+    padding: 14px;
+    max-height: 76vh;
+  }
+
+  .profile-form-section {
+    padding: 10px;
+  }
+
+  .profile-form-grid {
+    grid-template-columns: 1fr;
+    column-gap: 0;
+  }
+
   .s3-preset-select {
     width: 100%;
   }
@@ -1637,10 +2018,6 @@ onMounted(() => {
   }
 
   .s3-preset-row :deep(.n-space-item .n-button) {
-    width: 100%;
-  }
-
-  .profile-modal-footer :deep(.n-space) {
     width: 100%;
   }
 

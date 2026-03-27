@@ -11,7 +11,7 @@ export interface StorageProviderCapabilitiesResponse {
   requiresTokenForPrivateRead: boolean;
 }
 
-export type StorageProviderType = 'local' | 's3-compatible';
+export type StorageProviderType = 'local' | 's3-compatible' | 'github-repo' | 'github-releases';
 
 export interface StorageProviderConfigurationSummaryResponse {
   providerName: string | null;

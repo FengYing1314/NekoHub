@@ -1,18 +1,38 @@
 name: nekohub
 
 services:
-  # Local Storage + SQLite
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nekohub}
+      POSTGRES_USER: ${POSTGRES_USER:-nekohub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekohub-dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nekohub} -d ${POSTGRES_DB:-nekohub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # Local storage + PostgreSQL (default)
   nekohub:
     image: ${NEKOHUB_IMAGE:-ghcr.io/fengying1314/nekohub:latest}
     pull_policy: always
     env_file:
       - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "5121:8080"
     environment:
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
-      Persistence__Database__Provider: ${Persistence__Database__Provider:-sqlite}
-      Persistence__Database__ConnectionString: ${Persistence__Database__ConnectionString:-Data Source=/app/storage/nekohub.db}
+      Persistence__Database__Provider: ${Persistence__Database__Provider:-postgresql}
+      Persistence__Database__ConnectionString: ${Persistence__Database__ConnectionString:-Host=postgres;Port=5432;Database=nekohub;Username=nekohub;Password=nekohub-dev;Pooling=true}
       Auth__ApiKey__Enabled: ${Auth__ApiKey__Enabled:-true}
       Auth__ApiKey__Keys__0: ${Auth__ApiKey__Keys__0:-change-this-api-key-in-production}
       Storage__Provider: local
@@ -36,7 +56,7 @@ services:
       - "${FRONTEND_PORT:-5173}:4173"
     restart: unless-stopped
 
-  # S3-compatible 示例（配合 MinIO）
+  # S3-compatible 示例（配合 MinIO，仍使用 PostgreSQL 持久化）
   nekohub-s3:
     image: ${NEKOHUB_IMAGE:-ghcr.io/fengying1314/nekohub:latest}
     pull_policy: always
@@ -44,14 +64,18 @@ services:
     env_file:
       - .env
     depends_on:
-      - minio
-      - minio-init
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_started
     ports:
       - "5122:8080"
     environment:
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
-      Persistence__Database__Provider: ${Persistence__Database__Provider:-sqlite}
-      Persistence__Database__ConnectionString: ${Persistence__Database__ConnectionString:-Data Source=/app/storage/nekohub.db}
+      Persistence__Database__Provider: ${Persistence__Database__Provider:-postgresql}
+      Persistence__Database__ConnectionString: ${Persistence__Database__ConnectionString:-Host=postgres;Port=5432;Database=nekohub;Username=nekohub;Password=nekohub-dev;Pooling=true}
       Auth__ApiKey__Enabled: ${Auth__ApiKey__Enabled:-true}
       Auth__ApiKey__Keys__0: ${Auth__ApiKey__Keys__0:-change-this-api-key-in-production}
       Storage__Provider: s3
@@ -92,9 +116,12 @@ services:
       - /bin/sh
       - -c
       - |
-        until /usr/bin/mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+        until /usr/bin/mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
           echo "waiting for minio to be ready..."
           sleep 2
         done
-        /usr/bin/mc mb -p "local/$MINIO_BUCKET" || true
-        /usr/bin/mc anonymous set download "local/$MINIO_BUCKET" || true
+        /usr/bin/mc mb -p "local/$$MINIO_BUCKET" || true
+        /usr/bin/mc anonymous set download "local/$$MINIO_BUCKET" || true
+
+volumes:
+  postgres-data:

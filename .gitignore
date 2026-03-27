@@ -27,7 +27,7 @@ src/NekoHub.Api/storage/assets/
 /GEMINI.md
 /CHANGELOG.md
 
-# Local test workspace (keep local, exclude from public first release)
+# Keep tests local (do not track in remote repository)
 /tests/
 
 # Root scaffold leftovers (active project is under src/)

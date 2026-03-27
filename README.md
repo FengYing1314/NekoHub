@@ -29,6 +29,10 @@ curl http://localhost:5121/api/v1/system/ping
 
 前端：`http://localhost:5173`
 
+默认 compose 使用 PostgreSQL 持久化；SQLite 仍可用于本地轻量开发（手动切换 `.env` 中数据库配置）。
+
+首次启动全新数据库时，系统会按当前 `Storage:Provider` 自动 bootstrap 一个最小 default write profile（local/s3-compatible）。
+
 ### 本地源码
 
 后端：
@@ -77,9 +81,11 @@ curl -X POST "http://localhost:5121/mcp" \
 
 - `default profile` 语义是默认写入目标
 - 全局 runtime provider 当前仍以配置驱动为主
+- bootstrap 仅初始化 DB 管理面的默认写入 profile，不等于 runtime 热切换
 - 上传支持可选 `storageProviderProfileId`
 - 读取优先按资产绑定 `StorageProviderProfileId`，旧资产再回退历史字段
 - `GET /api/v1/system/storage/providers` 返回 `defaultProfile/runtime/alignment`，用于观察默认写入目标与 runtime 背景关系
+- 前端统一通过 `/providers` 管理 provider profiles（新增/编辑/删除/设默认）
 
 ## 部署文档
 

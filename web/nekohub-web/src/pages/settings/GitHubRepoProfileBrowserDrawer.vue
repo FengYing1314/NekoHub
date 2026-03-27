@@ -583,8 +583,8 @@ function readFileAsBase64(file: File): Promise<string> {
 </script>
 
 <template>
-  <n-drawer :show="show" placement="right" :width="isMobile ? '100%' : 920" @update:show="handleDrawerVisibilityChange">
-    <n-drawer-content :title="drawerTitle" closable body-content-style="padding: 12px">
+  <n-drawer :show="show" placement="right" :width="isMobile ? '100%' : 860" @update:show="handleDrawerVisibilityChange">
+    <n-drawer-content :title="drawerTitle" closable body-content-style="padding: 16px 18px">
       <n-space vertical :size="12">
         <n-alert type="info" :show-icon="false">
           {{ t('settings.storage.githubRepo.runtimeNotice') }}
@@ -736,57 +736,61 @@ function readFileAsBase64(file: File): Promise<string> {
     :mask-closable="!uploadSubmitting"
     :closable="!uploadSubmitting"
   >
-    <n-form label-placement="top">
-      <n-form-item :label="t('settings.storage.githubRepo.upload.file')">
-        <div class="github-upload-file-row">
-          <n-button size="small" :disabled="uploadSubmitting" @click="triggerUploadFileSelect">
-            {{ t('settings.storage.githubRepo.upload.selectFile') }}
-          </n-button>
-          <span class="github-upload-file-name">{{ selectedFileDisplayName }}</span>
-        </div>
-        <input
-          ref="uploadFileInputRef"
-          class="github-hidden-file-input"
-          type="file"
-          :disabled="uploadSubmitting"
-          @change="handleUploadFileChange"
-        />
-      </n-form-item>
+    <div class="github-upload-modal-shell">
+      <n-form label-placement="top">
+        <n-form-item :label="t('settings.storage.githubRepo.upload.file')">
+          <div class="github-upload-file-row">
+            <n-button size="small" :disabled="uploadSubmitting" @click="triggerUploadFileSelect">
+              {{ t('settings.storage.githubRepo.upload.selectFile') }}
+            </n-button>
+            <span class="github-upload-file-name">{{ selectedFileDisplayName }}</span>
+          </div>
+          <input
+            ref="uploadFileInputRef"
+            class="github-hidden-file-input"
+            type="file"
+            :disabled="uploadSubmitting"
+            @change="handleUploadFileChange"
+          />
+        </n-form-item>
 
-      <n-form-item :label="t('settings.storage.githubRepo.upload.targetPath')">
-        <n-input
-          v-model:value="uploadTargetPath"
-          :placeholder="t('settings.storage.githubRepo.upload.targetPathPlaceholder')"
-          :disabled="uploadSubmitting"
-        />
-      </n-form-item>
+        <n-form-item :label="t('settings.storage.githubRepo.upload.targetPath')">
+          <n-input
+            v-model:value="uploadTargetPath"
+            :placeholder="t('settings.storage.githubRepo.upload.targetPathPlaceholder')"
+            :disabled="uploadSubmitting"
+          />
+        </n-form-item>
 
-      <n-form-item :label="t('settings.storage.githubRepo.upload.commitMessage')">
-        <n-input
-          v-model:value="uploadCommitMessage"
-          :placeholder="t('settings.storage.githubRepo.upload.commitMessagePlaceholder')"
-          :disabled="uploadSubmitting"
-        />
-      </n-form-item>
+        <n-form-item :label="t('settings.storage.githubRepo.upload.commitMessage')">
+          <n-input
+            v-model:value="uploadCommitMessage"
+            :placeholder="t('settings.storage.githubRepo.upload.commitMessagePlaceholder')"
+            :disabled="uploadSubmitting"
+          />
+        </n-form-item>
 
-      <n-alert v-if="uploadTargetExpectedSha" type="info" :show-icon="false" class="github-upload-alert">
-        {{ t('settings.storage.githubRepo.upload.expectedShaHint', { sha: uploadTargetExpectedSha }) }}
-      </n-alert>
+        <n-alert v-if="uploadTargetExpectedSha" type="info" :show-icon="false" class="github-upload-alert">
+          {{ t('settings.storage.githubRepo.upload.expectedShaHint', { sha: uploadTargetExpectedSha }) }}
+        </n-alert>
 
-      <n-alert v-if="uploadErrorMessage" type="error" :show-icon="false" class="github-upload-alert">
-        {{ uploadErrorMessage }}
-      </n-alert>
-    </n-form>
+        <n-alert v-if="uploadErrorMessage" type="error" :show-icon="false" class="github-upload-alert">
+          {{ uploadErrorMessage }}
+        </n-alert>
+      </n-form>
+    </div>
 
     <template #footer>
-      <n-space justify="end" :wrap="true">
-        <n-button :disabled="uploadSubmitting" @click="closeUploadModal">
-          {{ t('common.cancel') }}
-        </n-button>
-        <n-button type="primary" :loading="uploadSubmitting" @click="submitUpload">
-          {{ t('settings.storage.githubRepo.actions.uploadFile') }}
-        </n-button>
-      </n-space>
+      <div class="github-upload-modal-footer">
+        <n-space justify="end" :wrap="true">
+          <n-button :disabled="uploadSubmitting" @click="closeUploadModal">
+            {{ t('common.cancel') }}
+          </n-button>
+          <n-button type="primary" :loading="uploadSubmitting" @click="submitUpload">
+            {{ t('settings.storage.githubRepo.actions.uploadFile') }}
+          </n-button>
+        </n-space>
+      </div>
     </template>
   </n-modal>
 </template>
@@ -847,7 +851,41 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 .github-upload-modal {
-  width: min(640px, calc(100vw - 24px));
+  width: min(540px, calc(100vw - 180px));
+  margin: 24px auto;
+}
+
+.github-upload-modal :deep(.n-card) {
+  border-radius: 12px;
+}
+
+.github-upload-modal :deep(.n-card__content) {
+  padding: 18px 20px 14px;
+  max-height: min(70vh, 620px);
+  overflow-y: auto;
+}
+
+.github-upload-modal-shell {
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.github-upload-modal-footer {
+  border-top: 1px solid #f0f2f5;
+  padding-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.github-upload-modal-footer :deep(.n-space) {
+  width: 100%;
+  max-width: 460px;
+}
+
+@media (max-width: 1200px) {
+  .github-upload-modal {
+    width: min(520px, calc(100vw - 110px));
+  }
 }
 
 .github-upload-file-row {
@@ -876,6 +914,16 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 @media (max-width: 768px) {
+  .github-upload-modal {
+    width: calc(100vw - 20px);
+    margin: 8px auto;
+  }
+
+  .github-upload-modal :deep(.n-card__content) {
+    padding: 12px;
+    max-height: 74vh;
+  }
+
   .github-path-input,
   .github-filter-keyword,
   .github-filter-type,
@@ -893,6 +941,14 @@ function readFileAsBase64(file: File): Promise<string> {
   }
 
   .github-pagination :deep(.n-space-item .n-button) {
+    width: 100%;
+  }
+
+  .github-upload-modal-footer :deep(.n-space-item) {
+    flex: 1 1 auto;
+  }
+
+  .github-upload-modal-footer :deep(.n-space-item .n-button) {
     width: 100%;
   }
 }
