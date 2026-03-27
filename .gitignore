@@ -25,6 +25,7 @@ src/NekoHub.Api/storage/assets/
 # Private / internal collaboration docs (not for first public release)
 /AGENTS.md
 /GEMINI.md
+/CHANGELOG.md
 
 # Local test workspace (keep local, exclude from public first release)
 /tests/
