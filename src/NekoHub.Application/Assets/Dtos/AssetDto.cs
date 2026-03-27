@@ -15,6 +15,7 @@ public sealed record AssetDto(
     int? Height,
     string? ChecksumSha256,
     string StorageProvider,
+    Guid? StorageProviderProfileId,
     string StorageKey,
     string? PublicUrl,
     bool IsPublic,

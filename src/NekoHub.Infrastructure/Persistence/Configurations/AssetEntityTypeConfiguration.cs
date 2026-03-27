@@ -53,6 +53,8 @@ public sealed class AssetEntityTypeConfiguration : IEntityTypeConfiguration<Asse
             .HasMaxLength(64)
             .IsRequired();
 
+        builder.Property(x => x.StorageProviderProfileId);
+
         builder.Property(x => x.StorageKey)
             .HasMaxLength(1024)
             .IsRequired();
@@ -80,6 +82,7 @@ public sealed class AssetEntityTypeConfiguration : IEntityTypeConfiguration<Asse
 
         builder.HasIndex(x => x.CreatedAtUtc);
         builder.HasIndex(x => x.StorageKey).IsUnique();
+        builder.HasIndex(x => x.StorageProviderProfileId);
         builder.HasIndex(x => new { x.Status, x.CreatedAtUtc });
     }
 }

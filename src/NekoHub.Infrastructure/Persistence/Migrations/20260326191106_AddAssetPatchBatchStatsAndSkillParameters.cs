@@ -13,17 +13,17 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "ParametersJson",
                 table: "SkillExecutions",
-                type: "TEXT",
+                type: MigrationColumnTypes.String(migrationBuilder),
                 nullable: true);
 
             migrationBuilder.AlterColumn<string>(
                 name: "OriginalFileName",
                 table: "Assets",
-                type: "TEXT",
+                type: MigrationColumnTypes.String(migrationBuilder, 512),
                 maxLength: 512,
                 nullable: true,
                 oldClrType: typeof(string),
-                oldType: "TEXT",
+                oldType: MigrationColumnTypes.String(migrationBuilder, 512),
                 oldMaxLength: 512);
         }
 
@@ -37,12 +37,12 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
             migrationBuilder.AlterColumn<string>(
                 name: "OriginalFileName",
                 table: "Assets",
-                type: "TEXT",
+                type: MigrationColumnTypes.String(migrationBuilder, 512),
                 maxLength: 512,
                 nullable: false,
                 defaultValue: "",
                 oldClrType: typeof(string),
-                oldType: "TEXT",
+                oldType: MigrationColumnTypes.String(migrationBuilder, 512),
                 oldMaxLength: 512,
                 oldNullable: true);
         }

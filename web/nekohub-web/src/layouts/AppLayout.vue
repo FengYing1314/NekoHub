@@ -45,6 +45,11 @@ const navigationItems = computed<NavigationItem[]>(() => [
     shortLabel: t('navShort.upload'),
   },
   {
+    key: '/providers',
+    label: t('nav.providers'),
+    shortLabel: t('navShort.providers'),
+  },
+  {
     key: '/settings',
     label: t('nav.settings'),
     shortLabel: t('navShort.settings'),
@@ -59,6 +64,10 @@ const activeMenuKey = computed(() => {
 
   if (route.path.startsWith('/settings')) {
     return '/settings';
+  }
+
+  if (route.path.startsWith('/providers')) {
+    return '/providers';
   }
 
   if (route.path.startsWith('/assets/upload')) {

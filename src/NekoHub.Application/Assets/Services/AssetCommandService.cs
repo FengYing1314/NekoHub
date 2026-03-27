@@ -13,6 +13,7 @@ namespace NekoHub.Application.Assets.Services;
 public sealed class AssetCommandService(
     IAssetRepository assetRepository,
     IAssetDerivativeRepository assetDerivativeRepository,
+    IAssetStorageTargetSelector assetStorageTargetSelector,
     IAssetStorageResolver assetStorageResolver,
     IAssetMetadataExtractor metadataExtractor,
     IAssetProcessingDispatcher assetProcessingDispatcher) : IAssetCommandService
@@ -58,7 +59,10 @@ public sealed class AssetCommandService(
         var checksumSha256 = await ComputeSha256Async(uploadStream, cancellationToken);
 
         uploadStream.Position = 0;
-        var storage = assetStorageResolver.ResolveDefault();
+        var storageTarget = await assetStorageTargetSelector.ResolveWriteTargetAsync(
+            command.StorageProviderProfileId,
+            cancellationToken);
+        var storage = storageTarget.Storage;
         var stored = await storage.StoreAsync(
             uploadStream,
             new StoreAssetRequest(
@@ -82,7 +86,8 @@ public sealed class AssetCommandService(
             height: metadata.Height,
             checksumSha256: checksumSha256,
             publicUrl: stored.PublicUrl,
-            isPublic: command.IsPublic);
+            isPublic: command.IsPublic,
+            storageProviderProfileId: storageTarget.StorageProviderProfileId);
 
         asset.UpdateAccessibleMetadata(command.Description, command.AltText);
         asset.MarkReady(stored.PublicUrl);
@@ -144,7 +149,10 @@ public sealed class AssetCommandService(
         }
 
         // 第一版采用硬删除：先删除存储对象，再删除资产记录，保证资源不会残留为“孤儿文件”。
-        var storage = assetStorageResolver.Resolve(asset.StorageProvider);
+        var storage = await assetStorageTargetSelector.ResolveReadTargetAsync(
+            asset.StorageProviderProfileId,
+            asset.StorageProvider,
+            cancellationToken);
         await storage.DeleteAsync(asset.StorageKey, cancellationToken);
 
         var derivatives = await assetDerivativeRepository.GetBySourceAssetIdAsync(asset.Id, cancellationToken);
@@ -280,6 +288,7 @@ public sealed class AssetCommandService(
             Height: asset.Height,
             ChecksumSha256: asset.ChecksumSha256,
             StorageProvider: asset.StorageProvider,
+            StorageProviderProfileId: asset.StorageProviderProfileId,
             StorageKey: asset.StorageKey,
             PublicUrl: asset.IsPublic ? asset.PublicUrl : null,
             IsPublic: asset.IsPublic,

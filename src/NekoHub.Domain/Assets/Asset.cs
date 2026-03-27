@@ -26,6 +26,8 @@ public sealed class Asset
 
     public string StorageProvider { get; private set; } = string.Empty;
 
+    public Guid? StorageProviderProfileId { get; private set; }
+
     public string StorageKey { get; private set; } = string.Empty;
 
     public string? PublicUrl { get; private set; }
@@ -60,7 +62,8 @@ public sealed class Asset
         int? height = null,
         string? checksumSha256 = null,
         string? publicUrl = null,
-        bool isPublic = true)
+        bool isPublic = true,
+        Guid? storageProviderProfileId = null)
     {
         Id = id;
         Type = type;
@@ -77,6 +80,7 @@ public sealed class Asset
         ChecksumSha256 = checksumSha256;
         PublicUrl = publicUrl;
         IsPublic = isPublic;
+        StorageProviderProfileId = storageProviderProfileId;
         CreatedAtUtc = DateTimeOffset.UtcNow;
         UpdatedAtUtc = CreatedAtUtc;
     }

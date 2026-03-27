@@ -16,6 +16,7 @@ using NekoHub.Infrastructure.Processing;
 using NekoHub.Infrastructure.Skills;
 using NekoHub.Infrastructure.Skills.Steps;
 using NekoHub.Infrastructure.Storage;
+using NekoHub.Infrastructure.Storage.GitHub;
 using NekoHub.Infrastructure.Storage.Local;
 using NekoHub.Infrastructure.Storage.S3;
 
@@ -39,10 +40,16 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<S3StorageOptions>, S3StorageOptionsValidator>();
         services
+            .AddOptions<GitHubRepoStorageOptions>()
+            .Bind(configuration.GetSection(GitHubRepoStorageOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<GitHubRepoStorageOptions>, GitHubRepoStorageOptionsValidator>();
+        services
             .AddOptions<LocalStorageOptions>()
             .Bind(configuration.GetSection(LocalStorageOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<LocalStorageOptions>, LocalStorageOptionsValidator>();
+        services.AddHttpClient(GitHubRepoAssetStorage.HttpClientName);
 
         services.AddDbContext<AssetDbContext>((serviceProvider, dbContextOptions) =>
         {
@@ -53,24 +60,32 @@ public static class ServiceCollectionExtensions
                 throw new InvalidOperationException("Persistence:Database:ConnectionString is required.");
             }
 
-            if (!string.Equals(databaseOptions.Provider, "sqlite", StringComparison.OrdinalIgnoreCase))
+            var normalizedProvider = DatabaseProviderNames.Normalize(databaseOptions.Provider);
+            if (string.Equals(normalizedProvider, DatabaseProviderNames.Sqlite, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"Unsupported database provider '{databaseOptions.Provider}'.");
+                var resolvedConnectionString = SqliteConnectionStringResolver.Resolve(
+                    databaseOptions.ConnectionString,
+                    hostEnvironment.ContentRootPath);
+
+                dbContextOptions.UseSqlite(resolvedConnectionString);
+                return;
             }
 
-            var resolvedConnectionString = SqliteConnectionStringResolver.Resolve(
-                databaseOptions.ConnectionString,
-                hostEnvironment.ContentRootPath);
-
-            dbContextOptions.UseSqlite(resolvedConnectionString);
+            dbContextOptions.UseNpgsql(databaseOptions.ConnectionString);
         });
 
         services.AddSingleton<LocalAssetStorage>();
         services.AddSingleton<S3AssetStorage>();
+        services.AddSingleton<GitHubRepoAssetStorage>();
         services.AddSingleton<IAssetStorage>(serviceProvider =>
             serviceProvider.GetRequiredService<LocalAssetStorage>());
         services.AddSingleton<IAssetStorage>(serviceProvider =>
             serviceProvider.GetRequiredService<S3AssetStorage>());
+        services.AddSingleton<IAssetStorage>(serviceProvider =>
+            serviceProvider.GetRequiredService<GitHubRepoAssetStorage>());
+        services.AddSingleton<IGitHubRepoStorage>(serviceProvider =>
+            serviceProvider.GetRequiredService<GitHubRepoAssetStorage>());
+        services.AddSingleton<IGitHubRepoProfileStorageInvoker, GitHubRepoProfileStorageInvoker>();
         services.AddSingleton<IAssetStorageResolver, AssetStorageResolver>();
         services.AddSingleton<IAssetMetadataExtractor, BasicAssetMetadataExtractor>();
         services.AddScoped<IAssetProcessingDispatcher, AssetProcessingDispatcher>();
@@ -84,6 +99,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAssetDerivativeRepository, EfCoreAssetDerivativeRepository>();
         services.AddScoped<IAssetStructuredResultRepository, EfCoreAssetStructuredResultRepository>();
         services.AddScoped<IAssetSkillExecutionRepository, EfCoreAssetSkillExecutionRepository>();
+        services.AddScoped<IStorageProviderProfileRepository, EfCoreStorageProviderProfileRepository>();
 
         return services;
     }

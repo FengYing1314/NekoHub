@@ -7,14 +7,16 @@ namespace NekoHub.Infrastructure.Storage;
 public sealed class AssetStorageResolver : IAssetStorageResolver
 {
     private readonly StorageOptions _storageOptions;
-    private readonly IReadOnlyDictionary<string, IAssetStorage> _storages;
+    private readonly IReadOnlyDictionary<string, IAssetStorage> _storagesByProviderName;
+    private readonly IReadOnlyDictionary<string, IAssetStorage> _storagesByProviderType;
 
     public AssetStorageResolver(
         IEnumerable<IAssetStorage> storages,
         IOptions<StorageOptions> storageOptions)
     {
         _storageOptions = storageOptions.Value;
-        _storages = CreateStorageMap(storages);
+        _storagesByProviderName = CreateStorageMap(storages, static storage => storage.ProviderName, "provider name");
+        _storagesByProviderType = CreateStorageMap(storages, static storage => storage.ProviderType, "provider type");
     }
 
     public IAssetStorage Resolve(StorageProvider provider)
@@ -25,7 +27,7 @@ public sealed class AssetStorageResolver : IAssetStorageResolver
     public IAssetStorage Resolve(string providerName)
     {
         var normalizedProviderName = NormalizeProviderName(providerName, "provider name");
-        if (!_storages.TryGetValue(normalizedProviderName, out var storage))
+        if (!_storagesByProviderName.TryGetValue(normalizedProviderName, out var storage))
         {
             throw new InvalidOperationException(
                 $"Unsupported storage provider '{normalizedProviderName}'. Currently supported providers: {GetSupportedProvidersDisplay()}.");
@@ -34,10 +36,22 @@ public sealed class AssetStorageResolver : IAssetStorageResolver
         return storage;
     }
 
+    public IAssetStorage ResolveByProviderType(string providerType)
+    {
+        var normalizedProviderType = NormalizeProviderName(providerType, "provider type");
+        if (!_storagesByProviderType.TryGetValue(normalizedProviderType, out var storage))
+        {
+            throw new InvalidOperationException(
+                $"Unsupported storage provider type '{normalizedProviderType}'. Currently supported provider types: {GetSupportedProviderTypesDisplay()}.");
+        }
+
+        return storage;
+    }
+
     public IAssetStorage ResolveDefault()
     {
         var configuredProviderName = NormalizeProviderName(_storageOptions.Provider, "Storage:Provider");
-        if (!_storages.TryGetValue(configuredProviderName, out var storage))
+        if (!_storagesByProviderName.TryGetValue(configuredProviderName, out var storage))
         {
             throw new InvalidOperationException(
                 $"Unsupported default storage provider '{configuredProviderName}'. Currently supported providers: {GetSupportedProvidersDisplay()}.");
@@ -46,18 +60,21 @@ public sealed class AssetStorageResolver : IAssetStorageResolver
         return storage;
     }
 
-    private static IReadOnlyDictionary<string, IAssetStorage> CreateStorageMap(IEnumerable<IAssetStorage> storages)
+    private static IReadOnlyDictionary<string, IAssetStorage> CreateStorageMap(
+        IEnumerable<IAssetStorage> storages,
+        Func<IAssetStorage, string> keySelector,
+        string keyDisplayName)
     {
         var map = new Dictionary<string, IAssetStorage>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var storage in storages)
         {
-            var providerName = NormalizeProviderName(storage.ProviderName, "IAssetStorage.ProviderName");
-            if (!map.TryAdd(providerName, storage))
+            var key = NormalizeProviderName(keySelector(storage), $"IAssetStorage.{keyDisplayName}");
+            if (!map.TryAdd(key, storage))
             {
-                var existing = map[providerName];
+                var existing = map[key];
                 throw new InvalidOperationException(
-                    $"Duplicate storage provider '{providerName}' detected: '{existing.GetType().Name}' and '{storage.GetType().Name}'.");
+                    $"Duplicate storage {keyDisplayName} '{key}' detected: '{existing.GetType().Name}' and '{storage.GetType().Name}'.");
             }
         }
 
@@ -71,7 +88,12 @@ public sealed class AssetStorageResolver : IAssetStorageResolver
 
     private string GetSupportedProvidersDisplay()
     {
-        return string.Join(", ", _storages.Keys.OrderBy(static provider => provider, StringComparer.OrdinalIgnoreCase));
+        return string.Join(", ", _storagesByProviderName.Keys.OrderBy(static provider => provider, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private string GetSupportedProviderTypesDisplay()
+    {
+        return string.Join(", ", _storagesByProviderType.Keys.OrderBy(static provider => provider, StringComparer.OrdinalIgnoreCase));
     }
 
     private static string NormalizeProviderName(string? providerName, string name)

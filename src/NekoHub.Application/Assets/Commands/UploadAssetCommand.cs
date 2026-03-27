@@ -7,4 +7,5 @@ public sealed record UploadAssetCommand(
     long DeclaredSize,
     string? Description,
     string? AltText,
-    bool IsPublic = true);
+    bool IsPublic = true,
+    Guid? StorageProviderProfileId = null);

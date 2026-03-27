@@ -15,7 +15,7 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.3");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.4");
 
             modelBuilder.Entity("NekoHub.Domain.Assets.Asset", b =>
                 {
@@ -84,6 +84,9 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("StorageProviderProfileId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("StoredFileName")
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
@@ -105,6 +108,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StorageKey")
                         .IsUnique();
+
+                    b.HasIndex("StorageProviderProfileId");
 
                     b.HasIndex("Status", "CreatedAtUtc");
 
@@ -284,6 +289,86 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.HasIndex("SkillExecutionId", "StepName");
 
                     b.ToTable("SkillExecutionStepResults", (string)null);
+                });
+
+            modelBuilder.Entity("NekoHub.Domain.Storage.StorageProviderProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ConfigurationJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsExperimental")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsPlatformBacked")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("RecommendedForPrimaryStorage")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RequiresAccessProxy")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RequiresTokenForPrivateRead")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SecretConfigurationJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("SupportsDelete")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SupportsDirectPublicUrl")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SupportsPrivateRead")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SupportsPublicRead")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SupportsVisibilityToggle")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsDefault");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("ProviderType");
+
+                    b.ToTable("StorageProviderProfiles", (string)null);
                 });
 
             modelBuilder.Entity("NekoHub.Domain.Assets.AssetDerivative", b =>

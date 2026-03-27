@@ -1,4 +1,5 @@
 using NekoHub.Application.Abstractions.Storage;
+using NekoHub.Domain.Storage;
 using NekoHub.Infrastructure.Options;
 
 namespace NekoHub.Infrastructure.Storage.Local;
@@ -10,6 +11,9 @@ public sealed class LocalAssetStorage(
     private readonly LocalStorageOptions _localStorageOptions = localStorageOptions.Value;
     private readonly StorageOptions _storageOptions = storageOptions.Value;
     public string ProviderName => StorageProviderExtensions.LocalProviderName;
+    public string ProviderType => StorageProviderTypes.Local;
+    public StorageProviderCapabilities Capabilities => StorageProviderCapabilityCatalog.GetRequired(ProviderType);
+    public bool SupportsWrite => true;
 
     public async Task<StoredAssetObject> StoreAsync(
         Stream content,

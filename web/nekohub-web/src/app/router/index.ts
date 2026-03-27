@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import AppLayout from '../../layouts/AppLayout.vue';
 import SettingsPage from '../../pages/settings/SettingsPage.vue';
+import ProvidersPage from '../../pages/providers/ProvidersPage.vue';
 import AssetListPage from '../../pages/assets/AssetListPage.vue';
 import AssetUploadPage from '../../pages/assets/AssetUploadPage.vue';
 import AssetDetailPage from '../../pages/assets/AssetDetailPage.vue';
@@ -21,6 +22,15 @@ const routes: RouteRecordRaw[] = [
         meta: {
           titleKey: 'settings.title',
           navKey: '/settings',
+        },
+      },
+      {
+        path: 'providers',
+        name: 'providers',
+        component: ProvidersPage,
+        meta: {
+          titleKey: 'providers.title',
+          navKey: '/providers',
         },
       },
       {

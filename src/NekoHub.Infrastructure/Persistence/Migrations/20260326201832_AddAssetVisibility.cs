@@ -13,7 +13,7 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
             migrationBuilder.AddColumn<bool>(
                 name: "IsPublic",
                 table: "Assets",
-                type: "INTEGER",
+                type: MigrationColumnTypes.Boolean(migrationBuilder),
                 nullable: false,
                 defaultValue: true);
         }

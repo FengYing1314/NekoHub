@@ -15,11 +15,11 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                 name: "AssetStructuredResults",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SourceAssetId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Kind = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
-                    PayloadJson = table.Column<string>(type: "TEXT", maxLength: 16384, nullable: false),
-                    CreatedAtUtc = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<Guid>(type: MigrationColumnTypes.Guid(migrationBuilder), nullable: false),
+                    SourceAssetId = table.Column<Guid>(type: MigrationColumnTypes.Guid(migrationBuilder), nullable: false),
+                    Kind = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 64), maxLength: 64, nullable: false),
+                    PayloadJson = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 16384), maxLength: 16384, nullable: false),
+                    CreatedAtUtc = table.Column<long>(type: MigrationColumnTypes.Long(migrationBuilder), nullable: false)
                 },
                 constraints: table =>
                 {

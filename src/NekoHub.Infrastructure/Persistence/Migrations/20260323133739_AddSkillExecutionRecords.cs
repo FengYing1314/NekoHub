@@ -15,13 +15,13 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                 name: "SkillExecutions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SourceAssetId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SkillName = table.Column<string>(type: "TEXT", maxLength: 128, nullable: false),
-                    TriggerSource = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
-                    StartedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    CompletedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    Succeeded = table.Column<bool>(type: "INTEGER", nullable: false)
+                    Id = table.Column<Guid>(type: MigrationColumnTypes.Guid(migrationBuilder), nullable: false),
+                    SourceAssetId = table.Column<Guid>(type: MigrationColumnTypes.Guid(migrationBuilder), nullable: false),
+                    SkillName = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 128), maxLength: 128, nullable: false),
+                    TriggerSource = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 32), maxLength: 32, nullable: false),
+                    StartedAtUtc = table.Column<long>(type: MigrationColumnTypes.Long(migrationBuilder), nullable: false),
+                    CompletedAtUtc = table.Column<long>(type: MigrationColumnTypes.Long(migrationBuilder), nullable: false),
+                    Succeeded = table.Column<bool>(type: MigrationColumnTypes.Boolean(migrationBuilder), nullable: false)
                 },
                 constraints: table =>
                 {
@@ -38,13 +38,13 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                 name: "SkillExecutionStepResults",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SkillExecutionId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    StepName = table.Column<string>(type: "TEXT", maxLength: 128, nullable: false),
-                    Succeeded = table.Column<bool>(type: "INTEGER", nullable: false),
-                    ErrorMessage = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: true),
-                    StartedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    CompletedAtUtc = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<Guid>(type: MigrationColumnTypes.Guid(migrationBuilder), nullable: false),
+                    SkillExecutionId = table.Column<Guid>(type: MigrationColumnTypes.Guid(migrationBuilder), nullable: false),
+                    StepName = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 128), maxLength: 128, nullable: false),
+                    Succeeded = table.Column<bool>(type: MigrationColumnTypes.Boolean(migrationBuilder), nullable: false),
+                    ErrorMessage = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 2048), maxLength: 2048, nullable: true),
+                    StartedAtUtc = table.Column<long>(type: MigrationColumnTypes.Long(migrationBuilder), nullable: false),
+                    CompletedAtUtc = table.Column<long>(type: MigrationColumnTypes.Long(migrationBuilder), nullable: false)
                 },
                 constraints: table =>
                 {

@@ -4,6 +4,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
 using NekoHub.Application.Abstractions.Storage;
+using NekoHub.Domain.Storage;
 using NekoHub.Infrastructure.Options;
 
 namespace NekoHub.Infrastructure.Storage.S3;
@@ -24,6 +25,12 @@ public sealed class S3AssetStorage : IAssetStorage, IDisposable
     }
 
     public string ProviderName => _s3StorageOptions.ProviderName;
+
+    public string ProviderType => StorageProviderTypes.S3Compatible;
+
+    public StorageProviderCapabilities Capabilities => StorageProviderCapabilityCatalog.GetRequired(ProviderType);
+
+    public bool SupportsWrite => true;
 
     public async Task<StoredAssetObject> StoreAsync(
         Stream content,

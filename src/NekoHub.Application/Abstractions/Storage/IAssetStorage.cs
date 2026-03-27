@@ -1,8 +1,16 @@
+using NekoHub.Domain.Storage;
+
 namespace NekoHub.Application.Abstractions.Storage;
 
 public interface IAssetStorage
 {
     string ProviderName { get; }
+
+    string ProviderType { get; }
+
+    StorageProviderCapabilities Capabilities { get; }
+
+    bool SupportsWrite { get; }
 
     Task<StoredAssetObject> StoreAsync(
         Stream content,

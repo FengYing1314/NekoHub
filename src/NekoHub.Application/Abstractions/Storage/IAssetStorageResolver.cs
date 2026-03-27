@@ -6,5 +6,7 @@ public interface IAssetStorageResolver
 
     IAssetStorage Resolve(string providerName);
 
+    IAssetStorage ResolveByProviderType(string providerType);
+
     IAssetStorage ResolveDefault();
 }

@@ -15,18 +15,18 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                 name: "AssetDerivatives",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SourceAssetId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Kind = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
-                    ContentType = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
-                    Extension = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
-                    Size = table.Column<long>(type: "INTEGER", nullable: false),
-                    Width = table.Column<int>(type: "INTEGER", nullable: true),
-                    Height = table.Column<int>(type: "INTEGER", nullable: true),
-                    StorageProvider = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
-                    StorageKey = table.Column<string>(type: "TEXT", maxLength: 1024, nullable: false),
-                    PublicUrl = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: true),
-                    CreatedAtUtc = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<Guid>(type: MigrationColumnTypes.Guid(migrationBuilder), nullable: false),
+                    SourceAssetId = table.Column<Guid>(type: MigrationColumnTypes.Guid(migrationBuilder), nullable: false),
+                    Kind = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 64), maxLength: 64, nullable: false),
+                    ContentType = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 255), maxLength: 255, nullable: false),
+                    Extension = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 32), maxLength: 32, nullable: false),
+                    Size = table.Column<long>(type: MigrationColumnTypes.Long(migrationBuilder), nullable: false),
+                    Width = table.Column<int>(type: MigrationColumnTypes.Int(migrationBuilder), nullable: true),
+                    Height = table.Column<int>(type: MigrationColumnTypes.Int(migrationBuilder), nullable: true),
+                    StorageProvider = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 64), maxLength: 64, nullable: false),
+                    StorageKey = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 1024), maxLength: 1024, nullable: false),
+                    PublicUrl = table.Column<string>(type: MigrationColumnTypes.String(migrationBuilder, 2048), maxLength: 2048, nullable: true),
+                    CreatedAtUtc = table.Column<long>(type: MigrationColumnTypes.Long(migrationBuilder), nullable: false)
                 },
                 constraints: table =>
                 {

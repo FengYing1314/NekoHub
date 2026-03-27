@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
-import { NButton, NCard, NForm, NFormItem, NInput, useMessage } from 'naive-ui';
+import {
+  NButton,
+  NCard,
+  NForm,
+  NFormItem,
+  NInput,
+  NSpace,
+  useMessage,
+} from 'naive-ui';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import PageHeader from '../../components/common/PageHeader.vue';
 import {
   useAppConfigStore,
@@ -10,6 +19,7 @@ import {
 
 const { t } = useI18n();
 const message = useMessage();
+const router = useRouter();
 const appConfigStore = useAppConfigStore();
 
 const formModel = reactive({
@@ -63,6 +73,10 @@ function handleSave(): void {
   }
 }
 
+function openProvidersPage(): void {
+  void router.push('/providers');
+}
+
 watch(
   () => [appConfigStore.apiBaseUrl, appConfigStore.apiKey] as const,
   ([apiBaseUrl, apiKey]) => {
@@ -109,12 +123,43 @@ watch(
         </div>
       </n-form>
     </n-card>
+
+    <n-card class="settings-card" :title="t('settings.providersEntry.title')">
+      <n-space vertical :size="10">
+        <div class="providers-entry-description">{{ t('settings.providersEntry.description') }}</div>
+        <n-space :wrap="true" align="center">
+          <n-button type="primary" secondary @click="openProvidersPage">
+            {{ t('settings.providersEntry.openAction') }}
+          </n-button>
+          <span class="providers-entry-hint">{{ t('settings.providersEntry.hint') }}</span>
+        </n-space>
+      </n-space>
+    </n-card>
   </div>
 </template>
 
 <style scoped>
+.settings-card + .settings-card {
+  margin-top: 16px;
+}
+
+.providers-entry-description {
+  color: #374151;
+  line-height: 1.6;
+}
+
+.providers-entry-hint {
+  color: #6b7280;
+  font-size: 13px;
+}
+
 @media (max-width: 768px) {
   .settings-actions :deep(.n-button) {
+    width: 100%;
+  }
+
+  .providers-entry-hint {
+    display: block;
     width: 100%;
   }
 }

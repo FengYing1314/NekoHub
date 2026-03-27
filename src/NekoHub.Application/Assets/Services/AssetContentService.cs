@@ -9,7 +9,7 @@ namespace NekoHub.Application.Assets.Services;
 public sealed class AssetContentService(
     IAssetRepository assetRepository,
     IAssetDerivativeRepository assetDerivativeRepository,
-    IAssetStorageResolver assetStorageResolver) : IAssetContentService
+    IAssetStorageTargetSelector assetStorageTargetSelector) : IAssetContentService
 {
     public async Task<AssetContentRedirectDto> GetRedirectAsync(Guid assetId, CancellationToken cancellationToken = default)
     {
@@ -62,6 +62,7 @@ public sealed class AssetContentService(
 
         EnsurePublicAsset(sourceAsset, normalizedStorageKey);
         return await OpenContentAsync(
+            storageProviderProfileId: null,
             storageProvider: derivative.StorageProvider,
             storageKey: derivative.StorageKey,
             contentType: derivative.ContentType,
@@ -71,7 +72,10 @@ public sealed class AssetContentService(
 
     private async Task<string?> ResolvePublicUrlAsync(Asset asset, CancellationToken cancellationToken)
     {
-        var storage = assetStorageResolver.Resolve(asset.StorageProvider);
+        var storage = await assetStorageTargetSelector.ResolveReadTargetAsync(
+            asset.StorageProviderProfileId,
+            asset.StorageProvider,
+            cancellationToken);
         var publicUrl = asset.PublicUrl;
         if (string.IsNullOrWhiteSpace(publicUrl))
         {
@@ -88,6 +92,7 @@ public sealed class AssetContentService(
         CancellationToken cancellationToken)
     {
         return OpenContentAsync(
+            storageProviderProfileId: asset.StorageProviderProfileId,
             storageProvider: asset.StorageProvider,
             storageKey: asset.StorageKey,
             contentType: contentType,
@@ -96,13 +101,17 @@ public sealed class AssetContentService(
     }
 
     private async Task<AssetPublicContentStreamDto> OpenContentAsync(
+        Guid? storageProviderProfileId,
         string storageProvider,
         string storageKey,
         string contentType,
         string notFoundIdentifier,
         CancellationToken cancellationToken)
     {
-        var storage = assetStorageResolver.Resolve(storageProvider);
+        var storage = await assetStorageTargetSelector.ResolveReadTargetAsync(
+            storageProviderProfileId,
+            storageProvider,
+            cancellationToken);
         var contentStream = await storage.OpenReadAsync(storageKey, cancellationToken);
         if (contentStream is null)
         {

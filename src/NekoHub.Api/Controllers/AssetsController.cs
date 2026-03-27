@@ -106,7 +106,8 @@ public sealed class AssetsController(
                 DeclaredSize: request.File.Length,
                 Description: request.Description,
                 AltText: request.AltText,
-                IsPublic: request.IsPublic ?? true),
+                IsPublic: request.IsPublic ?? true,
+                StorageProviderProfileId: request.StorageProviderProfileId),
             cancellationToken);
 
         var response = ApiResponseFactory.Success(ToResponse(uploaded));
@@ -263,6 +264,7 @@ public sealed class AssetsController(
             Height: dto.Height,
             ChecksumSha256: dto.ChecksumSha256,
             StorageProvider: dto.StorageProvider,
+            StorageProviderProfileId: dto.StorageProviderProfileId,
             StorageKey: dto.StorageKey,
             PublicUrl: dto.PublicUrl,
             IsPublic: dto.IsPublic,
@@ -290,6 +292,7 @@ public sealed class AssetsController(
             Height: dto.Height,
             ChecksumSha256: dto.ChecksumSha256,
             StorageProvider: dto.StorageProvider,
+            StorageProviderProfileId: dto.StorageProviderProfileId,
             StorageKey: dto.StorageKey,
             PublicUrl: dto.PublicUrl,
             IsPublic: dto.IsPublic,
@@ -346,6 +349,7 @@ public sealed class AssetsController(
                 Width: item.Width,
                 Height: item.Height,
                 StorageProvider: item.StorageProvider,
+                StorageProviderProfileId: item.StorageProviderProfileId,
                 PublicUrl: item.PublicUrl,
                 IsPublic: item.IsPublic,
                 CreatedAtUtc: item.CreatedAtUtc,

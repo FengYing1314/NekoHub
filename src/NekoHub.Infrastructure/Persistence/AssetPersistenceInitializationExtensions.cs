@@ -14,13 +14,19 @@ public static class AssetPersistenceInitializationExtensions
         using var scope = serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AssetDbContext>();
         var databaseOptions = scope.ServiceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
-        var hostEnvironment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
-        var resolvedConnectionString = SqliteConnectionStringResolver.Resolve(
-            databaseOptions.ConnectionString,
-            hostEnvironment.ContentRootPath);
+        var normalizedProvider = DatabaseProviderNames.Normalize(databaseOptions.Provider);
 
-        EnsureSqliteDirectory(databaseOptions.Provider, resolvedConnectionString);
-        TryBaselineLegacySqliteSchema(dbContext, databaseOptions.Provider);
+        if (string.Equals(normalizedProvider, DatabaseProviderNames.Sqlite, StringComparison.OrdinalIgnoreCase))
+        {
+            var hostEnvironment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
+            var resolvedConnectionString = SqliteConnectionStringResolver.Resolve(
+                databaseOptions.ConnectionString,
+                hostEnvironment.ContentRootPath);
+
+            EnsureSqliteDirectory(normalizedProvider, resolvedConnectionString);
+            TryBaselineLegacySqliteSchema(dbContext, normalizedProvider);
+        }
+
         dbContext.Database.Migrate();
     }
 

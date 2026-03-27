@@ -11,4 +11,6 @@ public sealed class UploadAssetFormRequest
     public string? AltText { get; init; }
 
     public bool? IsPublic { get; init; }
+
+    public Guid? StorageProviderProfileId { get; init; }
 }
