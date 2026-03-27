@@ -14,7 +14,7 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
             migrationBuilder.AddColumn<Guid>(
                 name: "StorageProviderProfileId",
                 table: "Assets",
-                type: "TEXT",
+                type: MigrationColumnTypes.Guid(migrationBuilder),
                 nullable: true);
 
             migrationBuilder.CreateIndex(

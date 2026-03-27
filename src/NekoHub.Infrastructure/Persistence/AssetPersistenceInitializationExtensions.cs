@@ -1,4 +1,5 @@
 using System.Data;
+using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,17 +10,28 @@ using NekoHub.Application.Storage.Commands;
 using NekoHub.Application.Storage.Services;
 using NekoHub.Domain.Storage;
 using NekoHub.Infrastructure.Options;
+using Npgsql;
 
 namespace NekoHub.Infrastructure.Persistence;
 
 public static class AssetPersistenceInitializationExtensions
 {
+    private static readonly TimeSpan PostgreSqlMigrationRetryDelay = TimeSpan.FromSeconds(2);
+    private const int PostgreSqlMigrationMaxAttempts = 10;
+
     public static void InitializeAssetPersistence(this IServiceProvider serviceProvider)
     {
         using var scope = serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AssetDbContext>();
         var databaseOptions = scope.ServiceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
         var normalizedProvider = DatabaseProviderNames.Normalize(databaseOptions.Provider);
+        var logger = scope.ServiceProvider
+            .GetService<ILoggerFactory>()
+            ?.CreateLogger("NekoHub.PersistenceInitialization");
+
+        logger?.LogInformation(
+            "Initializing asset persistence with database provider '{DatabaseProvider}'.",
+            normalizedProvider);
 
         if (string.Equals(normalizedProvider, DatabaseProviderNames.Sqlite, StringComparison.OrdinalIgnoreCase))
         {
@@ -32,8 +44,50 @@ public static class AssetPersistenceInitializationExtensions
             TryBaselineLegacySqliteSchema(dbContext, normalizedProvider);
         }
 
-        dbContext.Database.Migrate();
+        ApplyMigrationsWithRetry(dbContext, normalizedProvider, logger);
         EnsureDefaultWriteProfileBootstrap(scope.ServiceProvider, dbContext);
+
+        logger?.LogInformation("Asset persistence initialization completed.");
+    }
+
+    private static void ApplyMigrationsWithRetry(
+        AssetDbContext dbContext,
+        string provider,
+        ILogger? logger)
+    {
+        var maxAttempts = string.Equals(provider, DatabaseProviderNames.PostgreSql, StringComparison.OrdinalIgnoreCase)
+            ? PostgreSqlMigrationMaxAttempts
+            : 1;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt += 1)
+        {
+            try
+            {
+                dbContext.Database.Migrate();
+                logger?.LogInformation("Database migrations applied successfully on attempt {Attempt}.", attempt);
+                return;
+            }
+            catch (Exception ex) when (IsMissingKerberosDependency(ex))
+            {
+                logger?.LogCritical(
+                    ex,
+                    "Failed to initialize database because required system dependency 'libgssapi_krb5.so.2' is missing. Install Debian package 'libgssapi-krb5-2' in runtime image.");
+                throw;
+            }
+            catch (Exception ex) when (attempt < maxAttempts && IsTransientDatabaseStartupFailure(ex))
+            {
+                logger?.LogWarning(
+                    ex,
+                    "Database migration attempt {Attempt}/{MaxAttempts} failed due to transient startup/connectivity issue. Retrying in {DelaySeconds}s.",
+                    attempt,
+                    maxAttempts,
+                    PostgreSqlMigrationRetryDelay.TotalSeconds);
+                Thread.Sleep(PostgreSqlMigrationRetryDelay);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Failed to apply database migrations after {maxAttempts} attempts for provider '{provider}'.");
     }
 
     private static void EnsureDefaultWriteProfileBootstrap(IServiceProvider serviceProvider, AssetDbContext dbContext)
@@ -174,6 +228,54 @@ public static class AssetPersistenceInitializationExtensions
         }
 
         throw new InvalidOperationException($"Failed to resolve unique bootstrap profile name from base '{baseName}'.");
+    }
+
+    private static bool IsTransientDatabaseStartupFailure(Exception exception)
+    {
+        if (exception is TimeoutException)
+        {
+            return true;
+        }
+
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SocketException)
+            {
+                return true;
+            }
+
+            if (current is NpgsqlException)
+            {
+                return true;
+            }
+
+            if (current is PostgresException postgresException &&
+                string.Equals(postgresException.SqlState, "57P03", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsMissingKerberosDependency(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is DllNotFoundException dllNotFoundException &&
+                dllNotFoundException.Message.Contains("libgssapi_krb5.so.2", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (current.Message.Contains("libgssapi_krb5.so.2", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private sealed record BootstrapSeed(

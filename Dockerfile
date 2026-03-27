@@ -25,5 +25,8 @@ FROM base AS final
 USER root
 WORKDIR /app
 COPY --from=publish /app/publish .
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /app/storage/assets
 ENTRYPOINT ["dotnet", "NekoHub.Api.dll"]
