@@ -40,11 +40,11 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<long>("CreatedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<long?>("DeletedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
@@ -101,8 +101,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<long>("UpdatedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("Width")
                         .HasColumnType("integer");
@@ -131,8 +131,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<long>("CreatedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Extension")
                         .IsRequired()
@@ -190,8 +190,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("CreatedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -223,8 +223,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("CompletedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ParametersJson")
                         .HasColumnType("text");
@@ -237,8 +237,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SourceAssetId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("StartedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("Succeeded")
                         .HasColumnType("boolean");
@@ -264,8 +264,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("CompletedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(2048)
@@ -274,8 +274,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SkillExecutionId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("StartedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("StepName")
                         .IsRequired()
@@ -305,8 +305,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long>("CreatedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DisplayName")
                         .HasMaxLength(256)
@@ -361,8 +361,8 @@ namespace NekoHub.Infrastructure.Persistence.Migrations
                     b.Property<bool>("SupportsVisibilityToggle")
                         .HasColumnType("boolean");
 
-                    b.Property<long>("UpdatedAtUtc")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 

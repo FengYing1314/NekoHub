@@ -1,4 +1,3 @@
-using System.Data;
 using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -33,18 +32,7 @@ public static class AssetPersistenceInitializationExtensions
             "Initializing asset persistence with database provider '{DatabaseProvider}'.",
             normalizedProvider);
 
-        if (string.Equals(normalizedProvider, DatabaseProviderNames.Sqlite, StringComparison.OrdinalIgnoreCase))
-        {
-            var hostEnvironment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
-            var resolvedConnectionString = SqliteConnectionStringResolver.Resolve(
-                databaseOptions.ConnectionString,
-                hostEnvironment.ContentRootPath);
-
-            EnsureSqliteDirectory(normalizedProvider, resolvedConnectionString);
-            TryBaselineLegacySqliteSchema(dbContext, normalizedProvider);
-        }
-
-        ApplyMigrationsWithRetry(dbContext, normalizedProvider, logger);
+        ApplyMigrationsWithRetry(dbContext, logger);
         EnsureDefaultWriteProfileBootstrap(scope.ServiceProvider, dbContext);
 
         logger?.LogInformation("Asset persistence initialization completed.");
@@ -52,14 +40,9 @@ public static class AssetPersistenceInitializationExtensions
 
     private static void ApplyMigrationsWithRetry(
         AssetDbContext dbContext,
-        string provider,
         ILogger? logger)
     {
-        var maxAttempts = string.Equals(provider, DatabaseProviderNames.PostgreSql, StringComparison.OrdinalIgnoreCase)
-            ? PostgreSqlMigrationMaxAttempts
-            : 1;
-
-        for (var attempt = 1; attempt <= maxAttempts; attempt += 1)
+        for (var attempt = 1; attempt <= PostgreSqlMigrationMaxAttempts; attempt += 1)
         {
             try
             {
@@ -74,20 +57,20 @@ public static class AssetPersistenceInitializationExtensions
                     "Failed to initialize database because required system dependency 'libgssapi_krb5.so.2' is missing. Install Debian package 'libgssapi-krb5-2' in runtime image.");
                 throw;
             }
-            catch (Exception ex) when (attempt < maxAttempts && IsTransientDatabaseStartupFailure(ex))
+            catch (Exception ex) when (attempt < PostgreSqlMigrationMaxAttempts && IsTransientDatabaseStartupFailure(ex))
             {
                 logger?.LogWarning(
                     ex,
                     "Database migration attempt {Attempt}/{MaxAttempts} failed due to transient startup/connectivity issue. Retrying in {DelaySeconds}s.",
                     attempt,
-                    maxAttempts,
+                    PostgreSqlMigrationMaxAttempts,
                     PostgreSqlMigrationRetryDelay.TotalSeconds);
                 Thread.Sleep(PostgreSqlMigrationRetryDelay);
             }
         }
 
         throw new InvalidOperationException(
-            $"Failed to apply database migrations after {maxAttempts} attempts for provider '{provider}'.");
+            $"Failed to apply database migrations after {PostgreSqlMigrationMaxAttempts} attempts.");
     }
 
     private static void EnsureDefaultWriteProfileBootstrap(IServiceProvider serviceProvider, AssetDbContext dbContext)
@@ -285,123 +268,4 @@ public static class AssetPersistenceInitializationExtensions
         IReadOnlyDictionary<string, object?> Configuration,
         IReadOnlyDictionary<string, object?>? SecretConfiguration);
 
-    private static void EnsureSqliteDirectory(string provider, string connectionString)
-    {
-        if (!string.Equals(provider, "sqlite", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        var directory = SqliteConnectionStringResolver.TryGetDatabaseDirectory(connectionString);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-    }
-
-    private static void TryBaselineLegacySqliteSchema(AssetDbContext dbContext, string provider)
-    {
-        if (!string.Equals(provider, "sqlite", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        var migrations = dbContext.Database.GetMigrations().ToList();
-        if (migrations.Count == 0)
-        {
-            return;
-        }
-
-        var connection = dbContext.Database.GetDbConnection();
-        var shouldCloseConnection = connection.State != ConnectionState.Open;
-        if (shouldCloseConnection)
-        {
-            connection.Open();
-        }
-
-        try
-        {
-            var hasAssetsTable = HasSqliteTable(connection, "Assets");
-            if (!hasAssetsTable)
-            {
-                return;
-            }
-
-            EnsureMigrationHistoryTable(connection);
-            var hasAnyHistory = HasMigrationHistory(connection);
-            if (hasAnyHistory)
-            {
-                return;
-            }
-
-            var initialMigration = migrations[0];
-            var productVersion = dbContext.Model.GetProductVersion() ?? "10.0.3";
-            InsertMigrationHistory(connection, initialMigration, productVersion);
-        }
-        finally
-        {
-            if (shouldCloseConnection)
-            {
-                connection.Close();
-            }
-        }
-    }
-
-    private static bool HasSqliteTable(System.Data.Common.DbConnection connection, string tableName)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name";
-
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = "$name";
-        parameter.Value = tableName;
-        command.Parameters.Add(parameter);
-
-        var result = command.ExecuteScalar();
-        return Convert.ToInt64(result) > 0;
-    }
-
-    private static void EnsureMigrationHistoryTable(System.Data.Common.DbConnection connection)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-                              CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
-                                  "MigrationId" TEXT NOT NULL CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY,
-                                  "ProductVersion" TEXT NOT NULL
-                              );
-                              """;
-        command.ExecuteNonQuery();
-    }
-
-    private static bool HasMigrationHistory(System.Data.Common.DbConnection connection)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\"";
-        var result = command.ExecuteScalar();
-        return Convert.ToInt64(result) > 0;
-    }
-
-    private static void InsertMigrationHistory(
-        System.Data.Common.DbConnection connection,
-        string migrationId,
-        string productVersion)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-                              INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-                              VALUES ($migrationId, $productVersion);
-                              """;
-
-        var migrationIdParameter = command.CreateParameter();
-        migrationIdParameter.ParameterName = "$migrationId";
-        migrationIdParameter.Value = migrationId;
-        command.Parameters.Add(migrationIdParameter);
-
-        var productVersionParameter = command.CreateParameter();
-        productVersionParameter.ParameterName = "$productVersion";
-        productVersionParameter.Value = productVersion;
-        command.Parameters.Add(productVersionParameter);
-
-        command.ExecuteNonQuery();
-    }
 }

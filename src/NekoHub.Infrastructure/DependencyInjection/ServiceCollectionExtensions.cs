@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NekoHub.Application.Abstractions.Metadata;
 using NekoHub.Application.Abstractions.Persistence;
@@ -55,25 +53,12 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<AssetDbContext>((serviceProvider, dbContextOptions) =>
         {
             var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
-            var hostEnvironment = serviceProvider.GetRequiredService<IHostEnvironment>();
             if (string.IsNullOrWhiteSpace(databaseOptions.ConnectionString))
             {
                 throw new InvalidOperationException("Persistence:Database:ConnectionString is required.");
             }
 
-            var normalizedProvider = DatabaseProviderNames.Normalize(databaseOptions.Provider);
-            if (string.Equals(normalizedProvider, DatabaseProviderNames.Sqlite, StringComparison.OrdinalIgnoreCase))
-            {
-                var resolvedConnectionString = SqliteConnectionStringResolver.Resolve(
-                    databaseOptions.ConnectionString,
-                    hostEnvironment.ContentRootPath);
-
-                dbContextOptions.UseSqlite(resolvedConnectionString);
-                dbContextOptions.ConfigureWarnings(warnings =>
-                    warnings.Log(RelationalEventId.PendingModelChangesWarning));
-                return;
-            }
-
+            DatabaseProviderNames.Normalize(databaseOptions.Provider);
             dbContextOptions.UseNpgsql(databaseOptions.ConnectionString);
         });
 

@@ -17,30 +17,7 @@ public sealed class AssetDbContext(DbContextOptions<AssetDbContext> options) : D
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AssetDbContext).Assembly);
-        // TODO: Refactor DateTimeOffset converter to be provider-specific.
-        ApplyDateTimeOffsetConverters(modelBuilder);
 
         base.OnModelCreating(modelBuilder);
-    }
-
-    private static void ApplyDateTimeOffsetConverters(ModelBuilder modelBuilder)
-    {
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            var properties = entityType.GetProperties()
-                .Where(property => property.ClrType == typeof(DateTimeOffset) || property.ClrType == typeof(DateTimeOffset?));
-
-            foreach (var property in properties)
-            {
-                if (property.ClrType == typeof(DateTimeOffset))
-                {
-                    property.SetValueConverter(SqliteDateTimeOffsetConverters.DateTimeOffsetToUtcTicks);
-                }
-                else
-                {
-                    property.SetValueConverter(SqliteDateTimeOffsetConverters.NullableDateTimeOffsetToUtcTicks);
-                }
-            }
-        }
     }
 }
