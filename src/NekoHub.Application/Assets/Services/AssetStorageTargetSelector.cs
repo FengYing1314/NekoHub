@@ -6,7 +6,8 @@ namespace NekoHub.Application.Assets.Services;
 
 public sealed class AssetStorageTargetSelector(
     IStorageProviderProfileRepository storageProviderProfileRepository,
-    IAssetStorageResolver assetStorageResolver) : IAssetStorageTargetSelector
+    IAssetStorageResolver assetStorageResolver,
+    IStorageProviderProfileRuntimeFactory storageProviderProfileRuntimeFactory) : IAssetStorageTargetSelector
 {
     public async Task<AssetStorageTargetSelectionResult> ResolveWriteTargetAsync(
         Guid? requestedProfileId,
@@ -18,13 +19,7 @@ public sealed class AssetStorageTargetSelector(
                 requestedProfileId.Value,
                 cancellationToken);
 
-            var explicitStorage = ResolveStorageByProfileTypeOrThrow(explicitProfile.ProviderType, explicitProfile.Id);
-            EnsureSupportsWriteOrThrow(explicitStorage, explicitProfile.Id, explicitProfile.ProviderType);
-
-            return new AssetStorageTargetSelectionResult(
-                Storage: explicitStorage,
-                StorageProviderProfileId: explicitProfile.Id,
-                SelectionSource: "profile-explicit");
+            return await CreateWriteSelectionAsync(explicitProfile, "profile-explicit");
         }
 
         var defaultWriteProfile = await storageProviderProfileRepository.GetDefaultAsync(cancellationToken);
@@ -37,13 +32,7 @@ public sealed class AssetStorageTargetSelector(
                     $"Default write profile '{defaultWriteProfile.Id}' is disabled.");
             }
 
-            var defaultStorage = ResolveStorageByProfileTypeOrThrow(defaultWriteProfile.ProviderType, defaultWriteProfile.Id);
-            EnsureSupportsWriteOrThrow(defaultStorage, defaultWriteProfile.Id, defaultWriteProfile.ProviderType);
-
-            return new AssetStorageTargetSelectionResult(
-                Storage: defaultStorage,
-                StorageProviderProfileId: defaultWriteProfile.Id,
-                SelectionSource: "default-write-profile");
+            return await CreateWriteSelectionAsync(defaultWriteProfile, "default-write-profile");
         }
 
         var legacyConfiguredStorage = assetStorageResolver.ResolveDefault();
@@ -55,12 +44,12 @@ public sealed class AssetStorageTargetSelector(
         }
 
         return new AssetStorageTargetSelectionResult(
-            Storage: legacyConfiguredStorage,
-            StorageProviderProfileId: null,
-            SelectionSource: "configuration-default");
+            storageLease: AssetStorageLease.Shared(legacyConfiguredStorage),
+            storageProviderProfileId: null,
+            selectionSource: "configuration-default");
     }
 
-    public async Task<IAssetStorage> ResolveReadTargetAsync(
+    public async Task<AssetStorageLease> ResolveReadTargetAsync(
         Guid? boundProfileId,
         string legacyStorageProvider,
         CancellationToken cancellationToken = default)
@@ -84,7 +73,7 @@ public sealed class AssetStorageTargetSelector(
 
             try
             {
-                return assetStorageResolver.ResolveByProviderType(boundProfile.ProviderType);
+                return storageProviderProfileRuntimeFactory.CreateStorageLease(boundProfile);
             }
             catch (InvalidOperationException exception)
             {
@@ -96,7 +85,7 @@ public sealed class AssetStorageTargetSelector(
 
         try
         {
-            return assetStorageResolver.Resolve(legacyStorageProvider);
+            return AssetStorageLease.Shared(assetStorageResolver.Resolve(legacyStorageProvider));
         }
         catch (InvalidOperationException exception)
         {
@@ -106,17 +95,38 @@ public sealed class AssetStorageTargetSelector(
         }
     }
 
-    private IAssetStorage ResolveStorageByProfileTypeOrThrow(string providerType, Guid profileId)
+    private async Task<AssetStorageTargetSelectionResult> CreateWriteSelectionAsync(
+        Domain.Storage.StorageProviderProfile profile,
+        string selectionSource)
+    {
+        var storageLease = CreateProfileStorageLeaseForWriteOrThrow(profile);
+
+        try
+        {
+            EnsureSupportsWriteOrThrow(storageLease.Storage, profile.Id, profile.ProviderType);
+            return new AssetStorageTargetSelectionResult(
+                storageLease: storageLease,
+                storageProviderProfileId: profile.Id,
+                selectionSource: selectionSource);
+        }
+        catch
+        {
+            await storageLease.DisposeAsync();
+            throw;
+        }
+    }
+
+    private AssetStorageLease CreateProfileStorageLeaseForWriteOrThrow(Domain.Storage.StorageProviderProfile profile)
     {
         try
         {
-            return assetStorageResolver.ResolveByProviderType(providerType);
+            return storageProviderProfileRuntimeFactory.CreateStorageLease(profile);
         }
         catch (InvalidOperationException exception)
         {
             throw new ValidationException(
                 "storage_provider_profile_write_not_supported",
-                $"Storage provider profile '{profileId}' uses unsupported provider type '{providerType}' for write: {exception.Message}");
+                $"Storage provider profile '{profile.Id}' uses unsupported provider type '{profile.ProviderType}' for write: {exception.Message}");
         }
     }
 

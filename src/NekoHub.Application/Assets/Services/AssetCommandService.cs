@@ -14,7 +14,6 @@ public sealed class AssetCommandService(
     IAssetRepository assetRepository,
     IAssetDerivativeRepository assetDerivativeRepository,
     IAssetStorageTargetSelector assetStorageTargetSelector,
-    IAssetStorageResolver assetStorageResolver,
     IAssetMetadataExtractor metadataExtractor,
     IAssetProcessingDispatcher assetProcessingDispatcher) : IAssetCommandService
 {
@@ -59,7 +58,7 @@ public sealed class AssetCommandService(
         var checksumSha256 = await ComputeSha256Async(uploadStream, cancellationToken);
 
         uploadStream.Position = 0;
-        var storageTarget = await assetStorageTargetSelector.ResolveWriteTargetAsync(
+        await using var storageTarget = await assetStorageTargetSelector.ResolveWriteTargetAsync(
             command.StorageProviderProfileId,
             cancellationToken);
         var storage = storageTarget.Storage;
@@ -149,17 +148,20 @@ public sealed class AssetCommandService(
         }
 
         // 第一版采用硬删除：先删除存储对象，再删除资产记录，保证资源不会残留为“孤儿文件”。
-        var storage = await assetStorageTargetSelector.ResolveReadTargetAsync(
+        await using var storageLease = await assetStorageTargetSelector.ResolveReadTargetAsync(
             asset.StorageProviderProfileId,
             asset.StorageProvider,
             cancellationToken);
-        await storage.DeleteAsync(asset.StorageKey, cancellationToken);
+        await storageLease.Storage.DeleteAsync(asset.StorageKey, cancellationToken);
 
         var derivatives = await assetDerivativeRepository.GetBySourceAssetIdAsync(asset.Id, cancellationToken);
         foreach (var derivative in derivatives)
         {
-            var derivativeStorage = assetStorageResolver.Resolve(derivative.StorageProvider);
-            await derivativeStorage.DeleteAsync(derivative.StorageKey, cancellationToken);
+            await using var derivativeStorageLease = await assetStorageTargetSelector.ResolveReadTargetAsync(
+                asset.StorageProviderProfileId,
+                derivative.StorageProvider,
+                cancellationToken);
+            await derivativeStorageLease.Storage.DeleteAsync(derivative.StorageKey, cancellationToken);
         }
 
         await assetDerivativeRepository.DeleteRangeAsync(derivatives, cancellationToken);

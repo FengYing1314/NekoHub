@@ -7,7 +7,8 @@ namespace NekoHub.Application.Storage.Services;
 
 public sealed class StorageProviderQueryService(
     IStorageProviderProfileRepository storageProviderProfileRepository,
-    IAssetStorageResolver assetStorageResolver) : IStorageProviderQueryService
+    IAssetStorageResolver assetStorageResolver,
+    IStorageProviderProfileRuntimeFactory storageProviderProfileRuntimeFactory) : IStorageProviderQueryService
 {
     public async Task<StorageProviderOverviewQueryDto> GetOverviewAsync(CancellationToken cancellationToken = default)
     {
@@ -22,20 +23,8 @@ public sealed class StorageProviderQueryService(
             ? null
             : StorageProviderQueryMapper.ToProfileDto(defaultWriteProfile);
 
-        var runtimeStorage = assetStorageResolver.ResolveDefault();
-        var runtimeDto = new StorageRuntimeSummaryQueryDto(
-            ProviderType: runtimeStorage.ProviderType,
-            ProviderName: runtimeStorage.ProviderName,
-            Capabilities: StorageProviderQueryMapper.ToCapabilitiesDto(runtimeStorage.Capabilities),
-            IsConfigurationDriven: true,
-            MatchesDefaultProfileType: defaultWriteProfileDto is null
-                ? null
-                : string.Equals(
-                    runtimeStorage.ProviderType,
-                    defaultWriteProfileDto.ProviderType,
-                    StringComparison.OrdinalIgnoreCase));
-
-        var alignmentDto = BuildAlignmentStatus(runtimeDto, defaultWriteProfileDto);
+        var runtimeDto = BuildRuntimeSummary(defaultWriteProfile);
+        var alignmentDto = BuildAlignmentStatus(defaultWriteProfileDto);
         return new StorageProviderOverviewQueryDto(
             Profiles: profileDtos,
             DefaultProfile: defaultWriteProfileDto,
@@ -44,16 +33,40 @@ public sealed class StorageProviderQueryService(
             Alignment: alignmentDto);
     }
 
+    private StorageRuntimeSummaryQueryDto BuildRuntimeSummary(
+        Domain.Storage.StorageProviderProfile? defaultWriteProfile)
+    {
+        if (defaultWriteProfile is not null)
+        {
+            var runtimeDescriptor = storageProviderProfileRuntimeFactory.Describe(defaultWriteProfile);
+
+            return new StorageRuntimeSummaryQueryDto(
+                ProviderType: runtimeDescriptor.ProviderType,
+                ProviderName: runtimeDescriptor.ProviderName,
+                Capabilities: StorageProviderQueryMapper.ToCapabilitiesDto(runtimeDescriptor.Capabilities),
+                IsConfigurationDriven: false,
+                MatchesDefaultProfileType: true);
+        }
+
+        var runtimeStorage = assetStorageResolver.ResolveDefault();
+        return new StorageRuntimeSummaryQueryDto(
+            ProviderType: runtimeStorage.ProviderType,
+            ProviderName: runtimeStorage.ProviderName,
+            Capabilities: StorageProviderQueryMapper.ToCapabilitiesDto(runtimeStorage.Capabilities),
+            IsConfigurationDriven: true,
+            MatchesDefaultProfileType: null);
+    }
+
     private static StorageRuntimeAlignmentStatusQueryDto BuildAlignmentStatus(
-        StorageRuntimeSummaryQueryDto runtime,
         StorageProviderProfileQueryDto? defaultProfile)
     {
-        const string runtimeSelectionSource = "configuration";
+        const string configurationSelectionSource = "configuration";
+        const string databaseSelectionSource = "database-default-profile";
 
         if (defaultProfile is null)
         {
             return new StorageRuntimeAlignmentStatusQueryDto(
-                RuntimeSelectionSource: runtimeSelectionSource,
+                RuntimeSelectionSource: configurationSelectionSource,
                 HasDefaultProfile: false,
                 IsDefaultProfileEnabled: null,
                 ProviderTypeMatchesDefaultProfile: null,
@@ -61,39 +74,23 @@ public sealed class StorageProviderQueryService(
                 Message: "No default write profile is set in database. Runtime provider is selected from configuration.");
         }
 
-        var providerTypeMatchesDefaultProfile = string.Equals(
-            runtime.ProviderType,
-            defaultProfile.ProviderType,
-            StringComparison.OrdinalIgnoreCase);
-
         if (!defaultProfile.IsEnabled)
         {
             return new StorageRuntimeAlignmentStatusQueryDto(
-                RuntimeSelectionSource: runtimeSelectionSource,
+                RuntimeSelectionSource: databaseSelectionSource,
                 HasDefaultProfile: true,
                 IsDefaultProfileEnabled: false,
-                ProviderTypeMatchesDefaultProfile: providerTypeMatchesDefaultProfile,
-                Code: "db_default_profile_disabled",
-                Message: "Database default write profile is disabled. Runtime background provider is still selected from configuration.");
-        }
-
-        if (providerTypeMatchesDefaultProfile)
-        {
-            return new StorageRuntimeAlignmentStatusQueryDto(
-                RuntimeSelectionSource: runtimeSelectionSource,
-                HasDefaultProfile: true,
-                IsDefaultProfileEnabled: true,
                 ProviderTypeMatchesDefaultProfile: true,
-                Code: "runtime_matches_db_default_provider_type",
-                Message: "Runtime provider type matches the database default write profile type, but runtime is still configuration-driven (legacy background selection).");
+                Code: "db_default_profile_disabled",
+                Message: "Database default write profile is disabled. Uploads without an explicit storage profile will be rejected until the default profile is enabled or replaced.");
         }
 
         return new StorageRuntimeAlignmentStatusQueryDto(
-            RuntimeSelectionSource: runtimeSelectionSource,
+            RuntimeSelectionSource: databaseSelectionSource,
             HasDefaultProfile: true,
             IsDefaultProfileEnabled: true,
-            ProviderTypeMatchesDefaultProfile: false,
-            Code: "runtime_mismatches_db_default_provider_type",
-            Message: "Runtime provider type differs from the database default write profile type. Runtime is still configuration-driven (legacy background selection).");
+            ProviderTypeMatchesDefaultProfile: true,
+            Code: "runtime_matches_db_default_provider_type",
+            Message: "Runtime write target is resolved from the database default write profile.");
     }
 }

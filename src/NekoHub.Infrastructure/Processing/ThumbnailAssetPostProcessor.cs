@@ -1,6 +1,7 @@
 using NekoHub.Application.Abstractions.Persistence;
 using NekoHub.Application.Abstractions.Processing;
 using NekoHub.Application.Abstractions.Storage;
+using NekoHub.Application.Assets.Services;
 using NekoHub.Domain.Assets;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
@@ -9,7 +10,8 @@ using SixLabors.ImageSharp.Processing;
 namespace NekoHub.Infrastructure.Processing;
 
 public sealed class ThumbnailAssetPostProcessor(
-    IAssetStorageResolver assetStorageResolver,
+    IAssetRepository assetRepository,
+    IAssetStorageTargetSelector assetStorageTargetSelector,
     IAssetDerivativeRepository assetDerivativeRepository) : IAssetPostProcessor
 {
     private const int ThumbnailMaxSize = 256;
@@ -36,14 +38,25 @@ public sealed class ThumbnailAssetPostProcessor(
             return;
         }
 
-        var storage = assetStorageResolver.Resolve(context.StorageProvider);
-        await using var sourceStream = await storage.OpenReadAsync(context.StorageKey, cancellationToken);
+        var asset = await assetRepository.GetByIdAsync(context.AssetId, cancellationToken);
+        if (asset is null)
+        {
+            return;
+        }
+
+        await using var storageLease = await assetStorageTargetSelector.ResolveReadTargetAsync(
+            asset.StorageProviderProfileId,
+            asset.StorageProvider,
+            cancellationToken);
+
+        await using var sourceStream = await storageLease.Storage.OpenReadAsync(asset.StorageKey, cancellationToken);
         if (sourceStream is null)
         {
             return;
         }
 
-        using var image = await Image.LoadAsync(sourceStream, cancellationToken);
+        await using var bufferedSourceStream = await CopyToSeekableMemoryStreamAsync(sourceStream, cancellationToken);
+        using var image = await Image.LoadAsync(bufferedSourceStream, cancellationToken);
         if (image.Width > ThumbnailMaxSize || image.Height > ThumbnailMaxSize)
         {
             image.Mutate(processing => processing.Resize(new ResizeOptions
@@ -57,7 +70,7 @@ public sealed class ThumbnailAssetPostProcessor(
         await image.SaveAsync(output, new PngEncoder(), cancellationToken);
         output.Position = 0;
 
-        var stored = await storage.StoreAsync(
+        var stored = await storageLease.Storage.StoreAsync(
             output,
             new StoreAssetRequest(
                 FileName: $"{context.AssetId:N}_thumbnail_{ThumbnailMaxSize}.png",
@@ -81,6 +94,16 @@ public sealed class ThumbnailAssetPostProcessor(
 
         await assetDerivativeRepository.AddAsync(thumbnail, cancellationToken);
         await assetDerivativeRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task<MemoryStream> CopyToSeekableMemoryStreamAsync(
+        Stream source,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new MemoryStream();
+        await source.CopyToAsync(buffer, cancellationToken);
+        buffer.Position = 0;
+        return buffer;
     }
 
     private static bool IsImageContentType(string? contentType)

@@ -62,7 +62,7 @@ public sealed class AssetContentService(
 
         EnsurePublicAsset(sourceAsset, normalizedStorageKey);
         return await OpenContentAsync(
-            storageProviderProfileId: null,
+            storageProviderProfileId: sourceAsset.StorageProviderProfileId,
             storageProvider: derivative.StorageProvider,
             storageKey: derivative.StorageKey,
             contentType: derivative.ContentType,
@@ -72,10 +72,11 @@ public sealed class AssetContentService(
 
     private async Task<string?> ResolvePublicUrlAsync(Asset asset, CancellationToken cancellationToken)
     {
-        var storage = await assetStorageTargetSelector.ResolveReadTargetAsync(
+        await using var storageLease = await assetStorageTargetSelector.ResolveReadTargetAsync(
             asset.StorageProviderProfileId,
             asset.StorageProvider,
             cancellationToken);
+        var storage = storageLease.Storage;
         var publicUrl = asset.PublicUrl;
         if (string.IsNullOrWhiteSpace(publicUrl))
         {
@@ -108,11 +109,11 @@ public sealed class AssetContentService(
         string notFoundIdentifier,
         CancellationToken cancellationToken)
     {
-        var storage = await assetStorageTargetSelector.ResolveReadTargetAsync(
+        await using var storageLease = await assetStorageTargetSelector.ResolveReadTargetAsync(
             storageProviderProfileId,
             storageProvider,
             cancellationToken);
-        var contentStream = await storage.OpenReadAsync(storageKey, cancellationToken);
+        var contentStream = await storageLease.Storage.OpenReadAsync(storageKey, cancellationToken);
         if (contentStream is null)
         {
             throw AssetNotFound(notFoundIdentifier);

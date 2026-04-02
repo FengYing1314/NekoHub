@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGitHubRepoStorage>(serviceProvider =>
             serviceProvider.GetRequiredService<GitHubRepoAssetStorage>());
         services.AddSingleton<IGitHubRepoProfileStorageInvoker, GitHubRepoProfileStorageInvoker>();
+        services.AddSingleton<IStorageProviderProfileRuntimeFactory, StorageProviderProfileRuntimeFactory>();
         services.AddSingleton<IAssetStorageResolver, AssetStorageResolver>();
         services.AddSingleton<IAssetMetadataExtractor, BasicAssetMetadataExtractor>();
         services.AddScoped<IAssetProcessingDispatcher, AssetProcessingDispatcher>();
