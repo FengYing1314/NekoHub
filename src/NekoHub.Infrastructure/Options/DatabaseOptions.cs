@@ -4,7 +4,8 @@ public sealed class DatabaseOptions
 {
     public const string SectionName = "Persistence:Database";
 
-    public string Provider { get; init; } = "sqlite";
+    public string Provider { get; init; } = "postgresql";
 
-    public string ConnectionString { get; init; } = "Data Source=storage/nekohub.db";
+    public string ConnectionString { get; init; } =
+        "Host=localhost;Port=5432;Database=nekohub;Username=nekohub;Password=nekohub-dev;Pooling=true";
 }

@@ -17,6 +17,7 @@ public sealed class AssetDbContext(DbContextOptions<AssetDbContext> options) : D
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AssetDbContext).Assembly);
+        // TODO: Refactor DateTimeOffset converter to be provider-specific.
         ApplyDateTimeOffsetConverters(modelBuilder);
 
         base.OnModelCreating(modelBuilder);

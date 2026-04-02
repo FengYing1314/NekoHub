@@ -26,6 +26,8 @@ src/NekoHub.Api/storage/assets/
 /AGENTS.md
 /GEMINI.md
 /CHANGELOG.md
+.claude
+.env
 
 # Keep tests local (do not track in remote repository)
 /tests/

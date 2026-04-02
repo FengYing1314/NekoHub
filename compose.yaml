@@ -20,8 +20,8 @@ services:
 
   # Local storage + PostgreSQL (default)
   nekohub:
+    build: .
     image: ${NEKOHUB_IMAGE:-ghcr.io/fengying1314/nekohub:latest}
-    pull_policy: always
     env_file:
       - .env
     depends_on:
@@ -58,8 +58,8 @@ services:
 
   # S3-compatible 示例（配合 MinIO，仍使用 PostgreSQL 持久化）
   nekohub-s3:
+    build: .
     image: ${NEKOHUB_IMAGE:-ghcr.io/fengying1314/nekohub:latest}
-    pull_policy: always
     profiles: ["s3"]
     env_file:
       - .env
