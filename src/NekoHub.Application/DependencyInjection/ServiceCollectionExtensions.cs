@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using NekoHub.Application.Ai.Services;
 using NekoHub.Application.Assets.Services;
 using NekoHub.Application.Skills.Services;
 using NekoHub.Application.Storage.Services;
@@ -10,6 +11,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        services.AddScoped<IAiProviderProfileService, AiProviderProfileService>();
         services.AddScoped<IAssetCommandService, AssetCommandService>();
         services.AddScoped<IAssetQueryService, AssetQueryService>();
         services.AddScoped<IAssetContentService, AssetContentService>();

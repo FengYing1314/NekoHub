@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -12,6 +13,8 @@ using NekoHub.Api.Mcp.Tools;
 using NekoHub.Api.Contracts.Responses;
 using NekoHub.Api.Configuration;
 using NekoHub.Api.Serialization;
+using NekoHub.Api.Security;
+using NekoHub.Application.Abstractions.Security;
 
 namespace NekoHub.Api.Extensions;
 
@@ -19,6 +22,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApiLayer(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddDataProtection();
+        services.AddSingleton<IAiProviderSecretProtector, DataProtectionAiProviderSecretProtector>();
         services.Configure<AssetApiOptions>(configuration.GetSection(AssetApiOptions.SectionName));
         services.AddCors(options =>
         {

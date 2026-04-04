@@ -88,6 +88,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAssetDerivativeRepository, EfCoreAssetDerivativeRepository>();
         services.AddScoped<IAssetStructuredResultRepository, EfCoreAssetStructuredResultRepository>();
         services.AddScoped<IAssetSkillExecutionRepository, EfCoreAssetSkillExecutionRepository>();
+        services.AddScoped<IAiProviderProfileRepository, EfCoreAiProviderProfileRepository>();
         services.AddScoped<IStorageProviderProfileRepository, EfCoreStorageProviderProfileRepository>();
 
         return services;

@@ -13,4 +13,6 @@ public sealed class UploadAssetFormRequest
     public bool? IsPublic { get; init; }
 
     public Guid? StorageProviderProfileId { get; init; }
+
+    public bool? RunEnrichment { get; init; }
 }

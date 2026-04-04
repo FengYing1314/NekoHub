@@ -93,20 +93,24 @@ public sealed class AssetCommandService(
 
         await assetRepository.AddAsync(asset, cancellationToken);
         await assetRepository.SaveChangesAsync(cancellationToken);
-        await assetProcessingDispatcher.DispatchAssetCreatedAsync(
-            new AssetCreatedProcessingContext(
-                AssetId: asset.Id,
-                StorageProvider: asset.StorageProvider,
-                StorageKey: asset.StorageKey,
-                ContentType: asset.ContentType,
-                Extension: asset.Extension,
-                Size: asset.Size,
-                Width: asset.Width,
-                Height: asset.Height,
-                ChecksumSha256: asset.ChecksumSha256,
-                PublicUrl: asset.PublicUrl,
-                CreatedAtUtc: asset.CreatedAtUtc),
-            cancellationToken);
+
+        if (command.RunEnrichment)
+        {
+            await assetProcessingDispatcher.DispatchAssetCreatedAsync(
+                new AssetCreatedProcessingContext(
+                    AssetId: asset.Id,
+                    StorageProvider: asset.StorageProvider,
+                    StorageKey: asset.StorageKey,
+                    ContentType: asset.ContentType,
+                    Extension: asset.Extension,
+                    Size: asset.Size,
+                    Width: asset.Width,
+                    Height: asset.Height,
+                    ChecksumSha256: asset.ChecksumSha256,
+                    PublicUrl: asset.PublicUrl,
+                    CreatedAtUtc: asset.CreatedAtUtc),
+                cancellationToken);
+        }
 
         return ToDto(asset);
     }

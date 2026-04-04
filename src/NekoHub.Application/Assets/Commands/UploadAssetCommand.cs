@@ -8,4 +8,5 @@ public sealed record UploadAssetCommand(
     string? Description,
     string? AltText,
     bool IsPublic = true,
-    Guid? StorageProviderProfileId = null);
+    Guid? StorageProviderProfileId = null,
+    bool RunEnrichment = true);

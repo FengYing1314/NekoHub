@@ -107,7 +107,8 @@ public sealed class AssetsController(
                 Description: request.Description,
                 AltText: request.AltText,
                 IsPublic: request.IsPublic ?? true,
-                StorageProviderProfileId: request.StorageProviderProfileId),
+                StorageProviderProfileId: request.StorageProviderProfileId,
+                RunEnrichment: request.RunEnrichment ?? true),
             cancellationToken);
 
         var response = ApiResponseFactory.Success(ToResponse(uploaded));

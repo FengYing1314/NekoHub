@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NekoHub.Domain.Ai;
 using NekoHub.Domain.Assets;
 using NekoHub.Domain.Storage;
 using NekoHub.Domain.Skills;
@@ -7,6 +8,7 @@ namespace NekoHub.Infrastructure.Persistence;
 
 public sealed class AssetDbContext(DbContextOptions<AssetDbContext> options) : DbContext(options)
 {
+    public DbSet<AiProviderProfile> AiProviderProfiles => Set<AiProviderProfile>();
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<AssetDerivative> AssetDerivatives => Set<AssetDerivative>();
     public DbSet<AssetStructuredResult> AssetStructuredResults => Set<AssetStructuredResult>();
