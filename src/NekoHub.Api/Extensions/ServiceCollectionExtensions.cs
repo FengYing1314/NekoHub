@@ -81,6 +81,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMcpTool, DeleteAssetMcpTool>();
         services.AddScoped<IMcpTool, BatchDeleteAssetsMcpTool>();
         services.AddScoped<IMcpTool, GetAssetUsageStatsMcpTool>();
+        services.AddScoped<IMcpTool, ListStorageProfilesMcpTool>();
+        services.AddScoped<IMcpTool, CreateStorageProfileMcpTool>();
+        services.AddScoped<IMcpTool, UpdateStorageProfileMcpTool>();
+        services.AddScoped<IMcpTool, DeleteStorageProfileMcpTool>();
 
         services
             .AddControllers()

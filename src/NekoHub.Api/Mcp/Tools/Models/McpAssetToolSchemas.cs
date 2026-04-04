@@ -85,7 +85,8 @@ public static class McpAssetToolSchemas
                 },
                 ["description"] = NullableStringSchema(),
                 ["altText"] = NullableStringSchema(),
-                ["isPublic"] = BooleanSchema()
+                ["isPublic"] = BooleanSchema(),
+                ["storageProviderProfileId"] = NullableStringSchema("uuid")
             },
             ["fileName", "contentType", "contentBase64"]);
     }

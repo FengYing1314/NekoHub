@@ -35,6 +35,9 @@ public sealed class UploadAssetMcpTool(
     {
         var input = McpToolArgumentParser.ParseRequired<Arguments>(arguments, Definition.Name);
         ValidateInput(input);
+        var storageProviderProfileId = McpToolInputValidator.ParseOptionalGuid(
+            input.StorageProviderProfileId,
+            "storageProviderProfileId");
 
         byte[] contentBytes;
         try
@@ -68,7 +71,8 @@ public sealed class UploadAssetMcpTool(
                 DeclaredSize: contentBytes.LongLength,
                 Description: input.Description,
                 AltText: input.AltText,
-                IsPublic: input.IsPublic ?? true),
+                IsPublic: input.IsPublic ?? true,
+                StorageProviderProfileId: storageProviderProfileId),
             cancellationToken);
 
         var details = await assetQueryService.GetByIdAsync(uploaded.Id, cancellationToken);
@@ -120,5 +124,6 @@ public sealed class UploadAssetMcpTool(
         string? ContentBase64,
         string? Description,
         string? AltText,
-        bool? IsPublic);
+        bool? IsPublic,
+        string? StorageProviderProfileId);
 }
