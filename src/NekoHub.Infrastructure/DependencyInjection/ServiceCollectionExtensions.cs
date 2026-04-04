@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +8,7 @@ using NekoHub.Application.Abstractions.Persistence;
 using NekoHub.Application.Abstractions.Processing;
 using NekoHub.Application.Abstractions.Skills;
 using NekoHub.Application.Abstractions.Storage;
+using NekoHub.Infrastructure.Ai;
 using NekoHub.Infrastructure.Metadata;
 using NekoHub.Infrastructure.Options;
 using NekoHub.Infrastructure.Persistence;
@@ -49,6 +51,11 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<LocalStorageOptions>, LocalStorageOptionsValidator>();
         services.AddHttpClient(GitHubRepoAssetStorage.HttpClientName);
+        services.AddHttpClient<IOpenAiVisionClient, OpenAiVisionClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        });
 
         services.AddDbContext<AssetDbContext>((serviceProvider, dbContextOptions) =>
         {
