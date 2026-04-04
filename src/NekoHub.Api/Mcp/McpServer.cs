@@ -12,7 +12,7 @@ public sealed class McpServer(
     McpPromptRegistry promptRegistry,
     McpResourceRegistry resourceRegistry,
     McpToolRegistry toolRegistry,
-    ILogger<McpServer> logger)
+    ILogger<McpServer> logger) : IMcpServer
 {
     private const int ParseErrorCode = -32700;
     private const int InvalidRequestCode = -32600;

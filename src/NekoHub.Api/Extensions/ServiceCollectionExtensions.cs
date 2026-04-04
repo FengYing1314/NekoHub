@@ -62,7 +62,8 @@ public static class ServiceCollectionExtensions
                 policy.RequireAuthenticatedUser();
             });
         });
-        services.AddScoped<McpServer>();
+        services.AddSingleton<IMcpSessionManager, McpSessionManager>();
+        services.AddScoped<IMcpServer, McpServer>();
         services.AddScoped<McpPromptRegistry>();
         services.AddScoped<IMcpPrompt, InspectAssetMcpPrompt>();
         services.AddScoped<IMcpPrompt, EnrichAssetMcpPrompt>();
