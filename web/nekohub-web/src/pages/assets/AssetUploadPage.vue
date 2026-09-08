@@ -439,7 +439,7 @@ onMounted(() => {
   flex-wrap: wrap;
   padding: 14px 16px;
   border: 1px dashed rgba(148, 163, 184, 0.72);
-  border-radius: 14px;
+  border-radius: var(--app-radius-card);
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.88), rgba(255, 255, 255, 0.98));
 }
 

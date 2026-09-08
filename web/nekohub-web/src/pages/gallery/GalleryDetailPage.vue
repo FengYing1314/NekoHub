@@ -74,7 +74,7 @@ watch(
     <section class="gallery-detail-hero">
       <div class="gallery-detail-hero__copy">
         <span class="gallery-detail-hero__eyebrow">{{ t('gallery.detail.eyebrow') }}</span>
-        <h1 class="gallery-detail-hero__title">{{ titleText }}</h1>
+        <h1 class="gallery-detail-hero__title" :title="titleText">{{ titleText }}</h1>
         <p v-if="summaryText" class="gallery-detail-hero__description">{{ summaryText }}</p>
 
         <div class="gallery-detail-hero__actions">
@@ -105,7 +105,10 @@ watch(
     </section>
 
     <n-alert v-if="loadErrorMessage" type="warning" :show-icon="false">
-      {{ t('gallery.detail.loadFailed') }}: {{ loadErrorMessage }}
+      <div class="gallery-detail-error">
+        <span>{{ t('gallery.detail.loadFailed') }}: {{ loadErrorMessage }}</span>
+        <n-button size="small" secondary :loading="loading" @click="loadAsset">{{ t('common.retry') }}</n-button>
+      </div>
     </n-alert>
 
     <n-empty
@@ -196,16 +199,16 @@ watch(
 .gallery-detail-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--app-space-md);
 }
 
 .gallery-detail-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
-  gap: 20px;
-  padding: 24px;
+  gap: var(--app-space-lg);
+  padding: var(--app-space-lg);
   border: 1px solid rgba(191, 219, 254, 0.78);
-  border-radius: 30px;
+  border-radius: var(--app-radius-panel);
   background:
     radial-gradient(circle at top left, rgba(191, 219, 254, 0.55), transparent 28%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(239, 246, 255, 0.94) 48%, rgba(255, 251, 235, 0.92) 100%);
@@ -213,7 +216,7 @@ watch(
 
 .gallery-detail-hero__eyebrow {
   display: inline-flex;
-  margin-bottom: 14px;
+  margin-bottom: var(--app-space-sm);
   padding: 6px 10px;
   border-radius: 999px;
   background: rgba(14, 116, 144, 0.1);
@@ -224,30 +227,32 @@ watch(
 }
 
 .gallery-detail-hero__title {
+  overflow-wrap: anywhere;
   margin: 0;
   font-family: 'Sora', 'Noto Sans SC', sans-serif;
-  font-size: clamp(28px, 4vw, 46px);
-  line-height: 1;
-  letter-spacing: -0.05em;
+  font-size: clamp(28px, 3vw, 32px);
+  line-height: 1.25;
+  letter-spacing: -0.03em;
   color: #111827;
 }
 
 .gallery-detail-hero__description {
-  margin: 14px 0 0;
+  margin: var(--app-space-md) 0 0;
+  overflow-wrap: anywhere;
   color: #475569;
   line-height: 1.7;
 }
 
 .gallery-detail-hero__actions {
-  margin-top: 24px;
+  margin-top: var(--app-space-lg);
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--app-space-sm);
 }
 
 .gallery-detail-hero__preview {
   min-height: 320px;
-  border-radius: 24px;
+  border-radius: var(--app-radius-card);
   overflow: hidden;
   background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
   box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.9);
@@ -266,27 +271,36 @@ watch(
   height: 100%;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: var(--app-space-lg);
   color: #64748b;
   text-align: center;
+}
+
+.gallery-detail-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--app-space-sm);
+  overflow-wrap: anywhere;
 }
 
 .gallery-detail-grid {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
-  gap: 18px;
+  gap: var(--app-space-md);
 }
 
 .gallery-detail-panel {
   border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 24px;
+  border-radius: var(--app-radius-card);
   background: rgba(255, 255, 255, 0.84);
-  padding: 20px;
-  box-shadow: 0 16px 34px rgba(148, 163, 184, 0.12);
+  padding: var(--app-space-lg);
+  box-shadow: var(--app-shadow-soft);
 }
 
 .gallery-detail-panel__header {
-  margin-bottom: 16px;
+  margin-bottom: var(--app-space-md);
 }
 
 .gallery-detail-panel__header h2 {
@@ -308,6 +322,8 @@ watch(
 }
 
 .gallery-detail-info-list dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0;
   color: #0f172a;
   word-break: break-word;
@@ -316,12 +332,12 @@ watch(
 .gallery-derivative-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: var(--app-space-md);
 }
 
 .gallery-derivative-card {
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: var(--app-radius-card);
   border: 1px solid rgba(226, 232, 240, 0.9);
   background: #f8fafc;
 }
@@ -342,10 +358,11 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px;
+  padding: var(--app-space-md);
 }
 
 .gallery-derivative-card__title {
+  overflow-wrap: anywhere;
   font-size: 16px;
   font-weight: 700;
   color: #0f172a;
@@ -367,8 +384,35 @@ watch(
 @media (max-width: 768px) {
   .gallery-detail-hero,
   .gallery-detail-panel {
-    padding: 18px;
-    border-radius: 24px;
+    padding: var(--app-space-md);
+  }
+
+  .gallery-detail-hero {
+    gap: var(--app-space-md);
+  }
+
+  .gallery-detail-hero__title {
+    font-size: 24px;
+  }
+
+  .gallery-detail-hero__eyebrow {
+    padding: 4px var(--app-space-sm);
+    font-size: 11px;
+  }
+
+  .gallery-detail-hero__description {
+    margin-top: var(--app-space-sm);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .gallery-detail-hero__actions {
+    margin-top: var(--app-space-md);
+  }
+
+  .gallery-detail-hero__preview {
+    min-height: 0;
+    aspect-ratio: 4 / 3;
   }
 
   .gallery-derivative-list {

@@ -88,7 +88,10 @@ const { can } = useAuthPermissions();
 const {
   addEdges,
   addNodes,
+  addSelectedNodes,
+  findNode: findFlowNode,
   fitView,
+  removeSelectedElements,
   screenToFlowCoordinate,
   setEdges,
   setNodes,
@@ -918,8 +921,41 @@ function buildSkillNode(skillId: string, position: XYPosition): WorkflowNode {
   };
 }
 
+async function addSkillNode(skillId: string, position: XYPosition): Promise<void> {
+  if (!canManageWorkflows.value || !getWorkflowSkillCatalogItem(skillId)?.enabled) {
+    return;
+  }
+
+  const node = buildSkillNode(skillId, position);
+  addNodes(node);
+  await nextTick();
+  const addedNode = findFlowNode(node.id);
+  if (addedNode) {
+    removeSelectedElements();
+    addSelectedNodes([addedNode]);
+  }
+  selectNode(node);
+}
+
+async function handleSkillAdd(skillId: string): Promise<void> {
+  if (!canManageWorkflows.value || !getWorkflowSkillCatalogItem(skillId)?.enabled) {
+    return;
+  }
+
+  // 点击添加沿现有流程向右追加，保持保存后的线性执行顺序。
+  const lastPosition = toObject().nodes.reduce<XYPosition | undefined>((last, node) => (
+    !last || node.position.x > last.x || (node.position.x === last.x && node.position.y > last.y)
+      ? node.position
+      : last
+  ), undefined);
+  await addSkillNode(skillId, lastPosition
+    ? { x: lastPosition.x + 320 + 132, y: lastPosition.y + 44 }
+    : { x: 80 + 132, y: 160 + 44 });
+  await fitView({ padding: 0.16 });
+}
+
 function handleSkillDragStart(event: DragEvent, skillId: string): void {
-  if (!canManageWorkflows.value) {
+  if (!canManageWorkflows.value || !getWorkflowSkillCatalogItem(skillId)?.enabled) {
     event.preventDefault();
     return;
   }
@@ -975,7 +1011,7 @@ function handleCanvasDrop(event: DragEvent): void {
     y: event.clientY,
   });
 
-  addNodes(buildSkillNode(skillId, flowPosition));
+  void addSkillNode(skillId, flowPosition);
 }
 
 function handleNodeClick(event: NodeMouseEvent): void {
@@ -984,8 +1020,12 @@ function handleNodeClick(event: NodeMouseEvent): void {
     return;
   }
 
-  selectedNodeId.value = clickedNode.id;
-  syncNodeData(clickedNode);
+  selectNode(clickedNode);
+}
+
+function selectNode(node: WorkflowNode): void {
+  selectedNodeId.value = node.id;
+  syncNodeData(node);
   isNodeDrawerOpen.value = true;
 }
 
@@ -1294,8 +1334,10 @@ onMounted(() => {
                 type="button"
                 class="skill-palette__item"
                 :class="{ 'skill-palette__item--disabled': !skill.enabled || !canManageWorkflows }"
+                :disabled="!skill.enabled || !canManageWorkflows"
                 :draggable="skill.enabled && canManageWorkflows"
                 :style="{ '--skill-accent': skill.accentColor }"
+                @click="handleSkillAdd(skill.skillId)"
                 @dragstart="handleSkillDragStart($event, skill.skillId)"
                 @dragend="handleSkillDragEnd"
               >
@@ -1391,7 +1433,9 @@ onMounted(() => {
     <n-drawer
       :show="isNodeDrawerOpen"
       placement="right"
-      :width="380"
+      width="min(380px, 100vw)"
+      style="max-width: 100vw"
+      class="workflow-node-drawer"
       resizable
       @update:show="handleDrawerVisibilityChange"
     >
@@ -1507,36 +1551,36 @@ onMounted(() => {
 .workflow-editor-layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--app-space-md);
   align-items: start;
 }
 
 .workflow-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--app-space-md);
 }
 
 .workflow-panel {
-  border-radius: 14px;
+  border-radius: var(--app-radius-panel);
   border: 1px solid var(--app-border);
   background: linear-gradient(180deg, var(--app-surface-strong), var(--app-surface));
   box-shadow: var(--app-shadow-soft);
 }
 
 .workflow-panel :deep(.n-card-header) {
-  gap: 10px;
+  gap: var(--app-space-sm);
   flex-wrap: wrap;
 }
 
 .workflow-panel :deep(.n-card__content) {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--app-space-md);
 }
 
 .workflow-panel--canvas :deep(.n-card__content) {
-  padding-top: 12px;
+  padding-top: var(--app-space-md);
 }
 
 .workflow-selector {
@@ -1545,7 +1589,7 @@ onMounted(() => {
 
 .workflow-toggle-row {
   display: flex;
-  gap: 16px;
+  gap: var(--app-space-md);
   justify-content: space-between;
   align-items: flex-start;
 }
@@ -1571,32 +1615,37 @@ onMounted(() => {
 .skill-palette {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--app-space-md);
 }
 
 .skill-palette__item {
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--skill-accent) 18%, #dbe4f0);
-  border-radius: 14px;
+  border-radius: var(--app-radius-card);
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--skill-accent) 10%, transparent), transparent 58%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
-  padding: 14px;
+  padding: var(--app-space-md);
   display: flex;
-  gap: 12px;
+  gap: var(--app-space-md);
   align-items: flex-start;
   text-align: left;
   cursor: grab;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.skill-palette__item:hover {
+.skill-palette__item:not(:disabled):hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+  box-shadow: var(--app-shadow-soft);
 }
 
-.skill-palette__item:active {
+.skill-palette__item:not(:disabled):active {
   cursor: grabbing;
+}
+
+.skill-palette__item:focus-visible {
+  outline: 3px solid var(--skill-accent);
+  outline-offset: 3px;
 }
 
 .skill-palette__item--disabled {
@@ -1608,7 +1657,7 @@ onMounted(() => {
 .skill-palette__icon {
   width: 42px;
   height: 42px;
-  border-radius: 14px;
+  border-radius: var(--app-radius-card);
   background: color-mix(in srgb, var(--skill-accent) 15%, #eff6ff);
   color: var(--skill-accent);
   display: inline-flex;
@@ -1624,14 +1673,14 @@ onMounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--app-space-sm);
 }
 
 .skill-palette__title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--app-space-sm);
 }
 
 .skill-palette__title {
@@ -1653,7 +1702,7 @@ onMounted(() => {
 .workflow-canvas-shell {
   position: relative;
   min-height: 700px;
-  border-radius: 16px;
+  border-radius: var(--app-radius-card);
   overflow: hidden;
   background:
     radial-gradient(circle at top, rgba(59, 130, 246, 0.05), transparent 32%),
@@ -1685,8 +1734,8 @@ onMounted(() => {
 }
 
 .workflow-flow :deep(.vue-flow__controls) {
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
-  border-radius: 12px;
+  box-shadow: var(--app-shadow-soft);
+  border-radius: var(--app-radius-control);
   overflow: hidden;
 }
 
@@ -1697,12 +1746,17 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  padding: 24px;
+  padding: var(--app-space-lg);
+}
+
+.workflow-node-drawer {
+  border-radius: var(--app-radius-panel) 0 0 var(--app-radius-panel);
+  box-shadow: var(--app-shadow);
 }
 
 .workflow-node-drawer__hero {
-  padding: 16px;
-  border-radius: 14px;
+  padding: var(--app-space-md);
+  border-radius: var(--app-radius-card);
   background:
     radial-gradient(circle at top right, rgba(59, 130, 246, 0.1), transparent 52%),
     linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(245, 247, 251, 0.96));
@@ -1716,7 +1770,7 @@ onMounted(() => {
 }
 
 .workflow-node-drawer__description {
-  margin-top: 8px;
+  margin-top: var(--app-space-sm);
   font-size: 13px;
   line-height: 1.7;
   color: #475569;
@@ -1725,9 +1779,9 @@ onMounted(() => {
 .workflow-node-drawer__meta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--app-space-sm);
   flex-wrap: wrap;
-  margin-top: 12px;
+  margin-top: var(--app-space-md);
   font-size: 12px;
   color: #64748b;
 }
@@ -1749,7 +1803,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--app-space-md);
 }
 
 .workflow-node-drawer__field-copy {
@@ -1772,7 +1826,7 @@ onMounted(() => {
 .workflow-node-drawer__range-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px;
-  gap: 12px;
+  gap: var(--app-space-md);
   align-items: center;
 }
 
@@ -1803,14 +1857,14 @@ onMounted(() => {
   }
 
   .workflow-panel :deep(.n-card__content) {
-    padding-left: 14px;
-    padding-right: 14px;
+    padding-left: var(--app-space-md);
+    padding-right: var(--app-space-md);
   }
 
   .workflow-canvas-shell,
   .workflow-flow {
     min-height: 520px;
-    border-radius: 14px;
+    border-radius: var(--app-radius-card);
   }
 }
 </style>

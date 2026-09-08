@@ -27,6 +27,8 @@ const storageApiMocks = vi.hoisted(() => ({
   getStorageProviderOverview: vi.fn(),
 }));
 
+const viewport = vi.hoisted(() => ({ isMobile: false }));
+
 vi.mock('naive-ui', () => {
   const passthrough = (tag = 'div') => defineComponent({
     inheritAttrs: false,
@@ -95,21 +97,35 @@ vi.mock('naive-ui', () => {
     setup(props, { emit }) {
       return () => h('select', {
         value: props.value,
-        onChange: (event: Event) => emit('update:value', (event.target as HTMLSelectElement).value),
-      }, (props.options as Array<{ label: string; value: string }>).map((option) => (
+        onChange: (event: Event) => {
+          const selectedValue = (event.target as HTMLSelectElement).value;
+          const option = (props.options as Array<{ value: string | number }>).find((item) => String(item.value) === selectedValue);
+          emit('update:value', option?.value ?? selectedValue);
+        },
+      }, (props.options as Array<{ label: string; value: string | number }>).map((option) => (
         h('option', { value: option.value }, option.label)
       )));
     },
   });
 
   const NPagination = defineComponent({
+    name: 'NPagination',
     props: {
       page: Number,
       pageSize: Number,
+      pageSlot: Number,
+      simple: Boolean,
+      showSizePicker: Boolean,
     },
     emits: ['update:page', 'update:page-size'],
-    setup(props) {
-      return () => h('div', `${props.page}-${props.pageSize}`);
+    setup(props, { emit }) {
+      return () => h('div', [
+        `${props.page}-${props.pageSize}`,
+        h('button', {
+          'data-testid': 'pagination-next',
+          onClick: () => emit('update:page', (props.page ?? 1) + 1),
+        }, 'Next'),
+      ]);
     },
   });
 
@@ -194,6 +210,10 @@ vi.mock('../../composables/useAuthPermissions', () => ({
   }),
 }));
 
+vi.mock('../../composables/useIsMobile', () => ({
+  useIsMobile: () => ({ isMobile: viewport.isMobile }),
+}));
+
 vi.mock('../../components/common/PageHeader.vue', () => ({
   default: defineComponent({
     props: {
@@ -242,7 +262,7 @@ function createTestI18n() {
   });
 }
 
-async function mountPage() {
+async function mountPage(path = '/assets') {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -252,7 +272,7 @@ async function mountPage() {
     ],
   });
 
-  await router.push('/assets');
+  await router.push(path);
   await router.isReady();
 
   return mount(AssetListPage, {
@@ -266,6 +286,8 @@ describe('AssetListPage', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    viewport.isMobile = false;
+    assetApiMocks.listAssets.mockReset();
 
     assetApiMocks.getUsageStats.mockResolvedValue({
       totalAssets: 1,
@@ -285,6 +307,52 @@ describe('AssetListPage', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('uses simple mobile pagination and resets the page when the separate page size changes', async () => {
+    viewport.isMobile = true;
+    assetApiMocks.listAssets.mockImplementation(async (input: { page: number; pageSize: number }) => ({
+      items: [], page: input.page, pageSize: input.pageSize, total: 200,
+    }));
+    const wrapper = await mountPage('/assets?page=3&pageSize=20');
+    await flushPromises();
+
+    const pagination = wrapper.findComponent({ name: 'NPagination' });
+    expect(pagination.props('simple')).toBe(true);
+    expect(pagination.props('showSizePicker')).toBe(false);
+    const pageSizeSelect = wrapper.get<HTMLSelectElement>('.pagination-page-size select');
+    const pageSizeLabel = wrapper.get('label[for="asset-page-size"]');
+    expect(pageSizeLabel.text()).toBe('每页条数');
+    expect(pageSizeSelect.attributes('id')).toBe(pageSizeLabel.attributes('for'));
+    expect(pageSizeSelect.element.labels?.[0]).toBe(pageSizeLabel.element);
+    await pageSizeSelect.setValue('50');
+    await flushPromises();
+
+    expect(assetApiMocks.listAssets).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, pageSize: 50 }));
+    expect(pagination.props('page')).toBe(1);
+    expect(pagination.props('pageSize')).toBe(50);
+    await wrapper.get('[data-testid="pagination-next"]').trigger('click');
+    await flushPromises();
+    expect(assetApiMocks.listAssets).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 50 }));
+    wrapper.unmount();
+  });
+
+  it('keeps full desktop pagination with its built-in page size picker', async () => {
+    assetApiMocks.listAssets.mockImplementation(async (input: { page: number; pageSize: number }) => ({
+      items: [], page: input.page, pageSize: input.pageSize, total: 200,
+    }));
+    const wrapper = await mountPage();
+    await flushPromises();
+
+    const pagination = wrapper.findComponent({ name: 'NPagination' });
+    expect(pagination.props('simple')).toBe(false);
+    expect(pagination.props('showSizePicker')).toBe(true);
+    expect(pagination.props('pageSlot')).toBe(7);
+    expect(wrapper.find('.pagination-page-size').exists()).toBe(false);
+    await wrapper.get('[data-testid="pagination-next"]').trigger('click');
+    await flushPromises();
+    expect(assetApiMocks.listAssets).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 20 }));
+    wrapper.unmount();
   });
 
   it('shows a processing indicator and stops polling once pending assets are ready', async () => {

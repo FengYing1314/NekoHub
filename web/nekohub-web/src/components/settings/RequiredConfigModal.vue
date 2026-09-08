@@ -116,6 +116,7 @@ watch(
     :close-on-esc="!shouldBlockForMissingConfig"
     :closable="!shouldBlockForMissingConfig"
     :auto-focus="true"
+    :style="{ width: 'min(520px, calc(100vw - 24px))', maxHeight: 'calc(100dvh - 24px)', overflow: 'auto', borderRadius: 'var(--app-radius-panel)' }"
     class="required-config-modal"
     @update:show="handleModalVisibilityChange"
   >
@@ -157,21 +158,9 @@ watch(
 </template>
 
 <style scoped>
-.required-config-modal {
-  width: min(520px, calc(100vw - 32px));
-  max-height: calc(100vh - 24px);
-  overflow: auto;
-}
-
 .required-config-modal__description {
   font-size: 14px;
-  color: #4b5563;
+  color: var(--app-text-muted);
   line-height: 1.6;
-}
-
-@media (max-width: 768px) {
-  .required-config-modal {
-    width: calc(100vw - 24px);
-  }
 }
 </style>

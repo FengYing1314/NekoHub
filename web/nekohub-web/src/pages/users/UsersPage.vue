@@ -668,7 +668,7 @@ onMounted(() => {
 
 .user-modal :deep(.n-card),
 .permissions-modal :deep(.n-card) {
-  border-radius: 14px;
+  border-radius: var(--app-radius-card);
 }
 
 .user-modal :deep(.n-card__content),
@@ -689,7 +689,7 @@ onMounted(() => {
   min-height: 44px;
   padding: 10px 12px;
   border: 1px solid var(--app-border);
-  border-radius: 12px;
+  border-radius: var(--app-radius-control);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
   min-width: 0;
 }

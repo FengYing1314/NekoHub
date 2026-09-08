@@ -25,7 +25,7 @@ defineProps<Props>();
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  margin-bottom: 22px;
+  margin-bottom: var(--app-space-lg);
   padding: 2px 0;
 }
 
@@ -34,6 +34,7 @@ defineProps<Props>();
 }
 
 .page-header__title {
+  overflow-wrap: anywhere;
   margin: 0;
   font-size: 28px;
   font-weight: 700;
@@ -42,6 +43,7 @@ defineProps<Props>();
 }
 
 .page-header__description {
+  overflow-wrap: anywhere;
   margin: 10px 0 0;
   max-width: 760px;
   color: var(--app-text-muted);

@@ -2055,7 +2055,7 @@ onMounted(() => {
 
 .providers-section {
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border-radius: var(--app-radius-control);
   padding: 12px;
   background: #fafafa;
 }
@@ -2163,7 +2163,7 @@ onMounted(() => {
 }
 
 .profile-modal :deep(.n-card) {
-  border-radius: 14px;
+  border-radius: var(--app-radius-card);
 }
 
 .profile-modal :deep(.n-card__content) {
@@ -2180,7 +2180,7 @@ onMounted(() => {
 
 .profile-form-section {
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border-radius: var(--app-radius-control);
   background: #fbfbfd;
   padding: 14px;
 }
@@ -2218,7 +2218,7 @@ onMounted(() => {
 
 .s3-preset-panel {
   border: 1px solid #dbe4f6;
-  border-radius: 10px;
+  border-radius: var(--app-radius-control);
   background: #f8fbff;
   padding: 10px;
   margin-bottom: 12px;

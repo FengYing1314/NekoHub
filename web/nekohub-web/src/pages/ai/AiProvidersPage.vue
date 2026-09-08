@@ -109,7 +109,9 @@ const modalSubmitText = computed(() => (
     : t('aiProviders.actions.create')
 ));
 const modalStyle = computed(() => ({
-  width: isMobile.value ? 'calc(100vw - 20px)' : '720px',
+  width: isMobile.value
+    ? 'calc(100vw - var(--app-space-md))'
+    : 'min(720px, calc(100vw - var(--app-space-xl)))',
 }));
 const apiKeyPlaceholder = computed(() => (
   isEditMode.value
@@ -602,7 +604,7 @@ watch(
       </template>
     </page-header>
 
-    <n-alert v-if="isAiProvidersReadOnly" type="info" style="margin-bottom: 16px">
+    <n-alert v-if="isAiProvidersReadOnly" type="info" style="margin-bottom: var(--app-space-md)">
       {{ t('common.readOnlyNotice') }}
     </n-alert>
 
@@ -614,7 +616,7 @@ watch(
         </n-button>
       </template>
 
-      <n-space vertical :size="12">
+      <n-space vertical :size="16">
         <n-alert v-if="hasLoadError && !showLoadErrorResult" type="warning" :show-icon="false">
           {{ t('aiProviders.messages.loadFailed') }}: {{ loadErrorMessage }}
         </n-alert>
@@ -633,7 +635,7 @@ watch(
         <n-empty
           v-else-if="isEmpty"
           :description="t('aiProviders.table.empty')"
-          style="padding: 40px 0"
+          style="padding: var(--app-space-xl) 0"
         >
           <template #extra>
             <n-button v-if="canCreateAiProviders" type="primary" @click="openCreateModal">{{ t('aiProviders.actions.create') }}</n-button>
@@ -691,14 +693,16 @@ watch(
           :validation-status="validationState.apiKey ? 'error' : undefined"
           :feedback="validationState.apiKey || undefined"
         >
-          <n-input
-            v-model:value="formModel.apiKey"
-            type="password"
-            show-password-on="mousedown"
-            :disabled="isModalBusy"
-            :placeholder="apiKeyPlaceholder"
-          />
-          <div class="form-hint">{{ apiKeyHint }}</div>
+          <div class="form-field">
+            <n-input
+              v-model:value="formModel.apiKey"
+              type="password"
+              show-password-on="mousedown"
+              :disabled="isModalBusy"
+              :placeholder="apiKeyPlaceholder"
+            />
+            <div class="form-hint">{{ apiKeyHint }}</div>
+          </div>
         </n-form-item>
 
         <n-form-item
@@ -716,14 +720,16 @@ watch(
         <n-form-item
           :label="t('aiProviders.form.defaultSystemPrompt')"
         >
-          <n-input
-            v-model:value="formModel.defaultSystemPrompt"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 8 }"
-            :disabled="isModalBusy"
-            :placeholder="t('aiProviders.form.defaultSystemPromptPlaceholder')"
-          />
-          <div class="form-hint">{{ t('aiProviders.form.defaultSystemPromptHint') }}</div>
+          <div class="form-field">
+            <n-input
+              v-model:value="formModel.defaultSystemPrompt"
+              type="textarea"
+              :autosize="{ minRows: 4, maxRows: 8 }"
+              :disabled="isModalBusy"
+              :placeholder="t('aiProviders.form.defaultSystemPromptPlaceholder')"
+            />
+            <div class="form-hint">{{ t('aiProviders.form.defaultSystemPromptHint') }}</div>
+          </div>
         </n-form-item>
 
         <n-form-item :label="t('aiProviders.form.isActive')">
@@ -738,7 +744,7 @@ watch(
         v-if="latestTestResult"
         :type="latestTestResult.succeeded ? 'success' : 'error'"
         :title="latestTestResult.succeeded ? t('aiProviders.test.resultSuccess') : t('aiProviders.test.resultFailed')"
-        style="margin-top: 12px"
+        style="margin-top: var(--app-space-md)"
       >
         <div class="test-result-line">
           {{ t('aiProviders.test.resolvedApiBaseUrl') }}: {{ latestTestResult.resolvedApiBaseUrl }}
@@ -774,6 +780,11 @@ watch(
 </template>
 
 <style scoped>
+.section-card {
+  border-radius: var(--app-radius-card);
+  box-shadow: var(--app-shadow-soft);
+}
+
 .section-card :deep(.n-card-header__main) {
   font-weight: 600;
 }
@@ -783,15 +794,13 @@ watch(
 }
 
 .profile-modal {
-  margin: 30px auto;
-}
-
-.profile-modal :deep(.n-card) {
-  border-radius: 14px;
+  margin: var(--app-space-xl) auto;
+  border-radius: var(--app-radius-panel);
+  box-shadow: var(--app-shadow);
 }
 
 .profile-modal :deep(.n-card__content) {
-  padding: 20px 24px 16px;
+  padding: var(--app-space-lg) var(--app-space-lg) var(--app-space-md);
   max-height: min(74vh, 760px);
   overflow-y: auto;
 }
@@ -799,15 +808,22 @@ watch(
 .profile-modal-footer {
   width: 100%;
   border-top: 1px solid #f0f2f5;
-  padding-top: 12px;
+  padding-top: var(--app-space-md);
 }
 
 .profile-modal-footer :deep(.n-space) {
   width: 100%;
 }
 
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-sm);
+  width: 100%;
+  min-width: 0;
+}
+
 .form-hint {
-  margin-top: 6px;
   color: #6b7280;
   font-size: 12px;
   line-height: 1.5;
@@ -820,11 +836,11 @@ watch(
 
 @media (max-width: 768px) {
   .profile-modal {
-    margin: 8px auto;
+    margin: var(--app-space-sm) auto;
   }
 
   .profile-modal :deep(.n-card__content) {
-    padding: 14px;
+    padding: var(--app-space-md);
     max-height: 76vh;
   }
 

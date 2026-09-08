@@ -45,6 +45,7 @@ import { isAssetPending } from '../../types/assets';
 import type { StorageProviderOverviewResponse } from '../../types/storage';
 import { formatDateTime, formatFileSize } from '../../utils/format';
 import { useAuthPermissions } from '../../composables/useAuthPermissions';
+import { useIsMobile } from '../../composables/useIsMobile';
 import { PERMISSIONS } from '../../constants/permissions';
 
 const DEFAULT_PAGE = 1;
@@ -87,6 +88,7 @@ const router = useRouter();
 const dialog = useDialog();
 const message = useMessage();
 const { can } = useAuthPermissions();
+const { isMobile } = useIsMobile();
 
 const loading = ref(false);
 const backgroundRefreshing = ref(false);
@@ -967,7 +969,7 @@ watch(
         </n-button>
       </template>
 
-      <n-space vertical :size="12">
+      <n-space vertical :size="16">
         <n-alert v-if="hasStatsError" type="warning" :show-icon="false">
           <div class="stats-alert">
             <span>{{ t('asset.list.stats.loadFailed') }}: {{ statsLoadErrorMessage }}</span>
@@ -981,12 +983,12 @@ watch(
           v-if="statsLoading && !usageStats"
           cols="1 s:2 m:3 xl:5"
           responsive="screen"
-          :x-gap="12"
-          :y-gap="12"
+          :x-gap="16"
+          :y-gap="16"
         >
           <n-grid-item v-for="index in 5" :key="index">
             <div class="stats-tile">
-              <n-skeleton text style="width: 56px; margin-bottom: 10px" />
+              <n-skeleton text style="width: 56px; margin-bottom: var(--app-space-sm)" />
               <n-skeleton text :repeat="2" />
             </div>
           </n-grid-item>
@@ -996,8 +998,8 @@ watch(
           v-else-if="usageStats"
           cols="1 s:2 m:3 xl:5"
           responsive="screen"
-          :x-gap="12"
-          :y-gap="12"
+          :x-gap="16"
+          :y-gap="16"
         >
           <n-grid-item v-for="item in usageSummaryItems" :key="item.key">
             <div class="stats-tile">
@@ -1058,7 +1060,7 @@ watch(
         </n-space>
       </div>
 
-      <n-space vertical :size="8" style="margin-bottom: 12px">
+      <n-space vertical :size="8" style="margin-bottom: var(--app-space-md)">
         <n-alert v-if="hasProcessingAssets" type="info" :show-icon="false" data-testid="asset-list-processing-banner">
           <div class="processing-alert">
             <span>{{ t('asset.list.processing.notice', { count: processingAssetCount }) }}</span>
@@ -1110,7 +1112,7 @@ watch(
         v-else-if="isEmpty"
         :description="t('asset.list.emptyDescription')"
         :show-icon="true"
-        style="padding: 48px 0"
+        style="padding: calc(var(--app-space-lg) * 2) 0"
       >
         <template #extra>
           <n-button type="primary" @click="goToUpload">{{ t('asset.list.upload') }}</n-button>
@@ -1132,16 +1134,30 @@ watch(
 
       <div class="pagination-wrapper">
         <div class="pagination-label">{{ t('asset.list.pagination') }}</div>
-        <n-pagination
-          :page="page"
-          :page-size="pageSize"
-          :item-count="totalFromServer"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :page-slot="7"
-          show-size-picker
-          @update:page="handlePageChange"
-          @update:page-size="handlePageSizeChange"
-        />
+        <div class="pagination-controls">
+          <n-pagination
+            :page="page"
+            :page-size="pageSize"
+            :item-count="totalFromServer"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :page-slot="7"
+            :simple="isMobile"
+            :show-size-picker="!isMobile"
+            @update:page="handlePageChange"
+            @update:page-size="handlePageSizeChange"
+          />
+          <div v-if="isMobile" class="pagination-page-size">
+            <label for="asset-page-size" class="pagination-label">{{ t('asset.list.pageSize') }}</label>
+            <select
+              id="asset-page-size"
+              :value="pageSize"
+              class="pagination-page-size-control"
+              @change="handlePageSizeChange(Number(($event.target as HTMLSelectElement).value))"
+            >
+              <option v-for="size in PAGE_SIZE_OPTIONS" :key="size" :value="size">{{ size }}</option>
+            </select>
+          </div>
+        </div>
       </div>
     </n-card>
   </div>
@@ -1149,21 +1165,22 @@ watch(
 
 <style scoped>
 .stats-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--app-space-md);
 }
 
 .stats-alert {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--app-space-md);
   flex-wrap: wrap;
 }
 
 .stats-tile {
-  padding: 16px;
+  padding: var(--app-space-md);
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border-radius: var(--app-radius-card);
+  box-shadow: var(--app-shadow-soft);
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   min-height: 112px;
 }
@@ -1171,7 +1188,7 @@ watch(
 .stats-label {
   font-size: 12px;
   color: #6b7280;
-  margin-bottom: 8px;
+  margin-bottom: var(--app-space-sm);
 }
 
 .stats-value {
@@ -1183,21 +1200,21 @@ watch(
 }
 
 .stats-meta {
-  margin-top: 8px;
+  margin-top: var(--app-space-sm);
   font-size: 12px;
   color: #6b7280;
   line-height: 1.5;
 }
 
 .toolbar {
-  margin-bottom: 16px;
+  margin-bottom: var(--app-space-md);
 }
 
 .processing-alert {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--app-space-md);
   flex-wrap: wrap;
 }
 
@@ -1223,15 +1240,15 @@ watch(
 }
 
 .batch-action-bar {
-  margin-bottom: 16px;
-  padding: 12px 16px;
+  margin-bottom: var(--app-space-md);
+  padding: var(--app-space-sm) var(--app-space-md);
   border: 1px solid #f3d6a0;
-  border-radius: 12px;
+  border-radius: var(--app-radius-card);
   background: #fff8eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--app-space-md);
   flex-wrap: wrap;
 }
 
@@ -1252,19 +1269,55 @@ watch(
 }
 
 .pagination-wrapper {
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: var(--app-space-md);
+  padding-top: var(--app-space-md);
   border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--app-space-md);
   flex-wrap: wrap;
 }
 
 .pagination-label {
   font-size: 13px;
   color: #6b7280;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--app-space-md);
+}
+
+.pagination-page-size {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-sm);
+}
+
+.pagination-page-size-control {
+  width: 104px;
+  max-width: 50%;
+  min-height: 40px;
+  padding: var(--app-space-sm);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-control);
+  background: var(--app-surface-strong);
+  color: var(--app-text);
+  font: inherit;
+}
+
+.pagination-page-size-control:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.section-card {
+  border-radius: var(--app-radius-card);
+  box-shadow: var(--app-shadow-soft);
 }
 
 .section-card :deep(.n-card-header__main) {
@@ -1289,11 +1342,17 @@ watch(
   }
 
   .batch-action-bar {
-    padding: 12px;
+    padding: var(--app-space-md);
   }
 
-  .pagination-wrapper {
-    align-items: flex-start;
+  .pagination-wrapper,
+  .pagination-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pagination-controls :deep(.n-pagination) {
+    align-self: center;
   }
 }
 </style>

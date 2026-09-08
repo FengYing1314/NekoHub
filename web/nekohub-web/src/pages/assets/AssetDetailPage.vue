@@ -1126,7 +1126,7 @@ onBeforeUnmount(() => {
 }
 
 .section-card :deep(.n-descriptions-table-content) {
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .section-label {
@@ -1137,7 +1137,7 @@ onBeforeUnmount(() => {
 
 .derivative-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -1155,13 +1155,13 @@ onBeforeUnmount(() => {
 
 .structured-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: 12px;
 }
 
 .skill-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -1175,7 +1175,7 @@ onBeforeUnmount(() => {
 .info-list {
   margin: 0;
   display: grid;
-  grid-template-columns: 108px 1fr;
+  grid-template-columns: 108px minmax(0, 1fr);
   row-gap: 6px;
   column-gap: 8px;
 }
@@ -1187,7 +1187,7 @@ onBeforeUnmount(() => {
 .info-list dd {
   margin: 0;
   color: #111827;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .danger-text {
@@ -1240,7 +1240,7 @@ onBeforeUnmount(() => {
   }
 
   .info-list {
-    grid-template-columns: 96px 1fr;
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 }
 </style>

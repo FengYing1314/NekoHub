@@ -58,16 +58,17 @@ const isGalleryRoute = computed(() => route.path.startsWith('/gallery'));
 }
 
 .public-header__inner {
-  width: min(1180px, calc(100vw - 32px));
+  width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
   min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--app-space-md);
 }
 
 .brand-link {
+  min-width: 0;
   display: inline-flex;
   flex-direction: column;
   gap: 2px;
@@ -103,6 +104,12 @@ const isGalleryRoute = computed(() => route.path.startsWith('/gallery'));
   transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
+.brand-link:focus-visible,
+.public-nav__link:focus-visible {
+  outline: 2px solid #b45309;
+  outline-offset: 3px;
+}
+
 .public-nav__link:hover {
   transform: translateY(-1px);
   background: rgba(217, 119, 6, 0.1);
@@ -120,33 +127,51 @@ const isGalleryRoute = computed(() => route.path.startsWith('/gallery'));
 }
 
 .public-main {
-  width: min(1180px, calc(100vw - 32px));
+  width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 30px 0 48px;
+  padding: var(--app-space-lg) 0 var(--app-space-xl);
 }
 
 @media (max-width: 768px) {
   .public-header__inner {
-    width: calc(100vw - 24px);
-    min-height: 68px;
-    padding: 8px 0;
-    flex-direction: column;
-    align-items: stretch;
+    width: calc(100% - 24px);
+    min-height: 60px;
+    padding: var(--app-space-sm) 0;
+    gap: var(--app-space-sm);
+  }
+
+  .brand-link {
+    flex: 1 1 auto;
+  }
+
+  .brand-link__eyebrow {
+    display: none;
+  }
+
+  .brand-link__title {
+    font-size: 18px;
+    line-height: 1.25;
+    letter-spacing: -0.03em;
   }
 
   .public-nav {
-    width: 100%;
+    flex: 0 0 auto;
+    gap: 4px;
   }
 
   .public-nav__link {
-    flex: 1 1 0;
-    text-align: center;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    padding: var(--app-space-sm);
+    font-size: 13px;
+    white-space: nowrap;
   }
 
   .public-main {
-    width: calc(100vw - 24px);
-    padding-top: 24px;
-    padding-bottom: 32px;
+    width: calc(100% - 24px);
+    padding-top: var(--app-space-md);
+    padding-bottom: var(--app-space-xl);
   }
 }
 </style>

@@ -23,7 +23,6 @@ import {
 import { useI18n } from 'vue-i18n';
 import { browseGitHubRepoProfile, upsertGitHubRepoProfile } from '../../api/system/storage.api';
 import { extractApiError, extractApiErrorMessage } from '../../api/client/error';
-import { useIsMobile } from '../../composables/useIsMobile';
 import type {
   GitHubRepoBrowseItemResponse,
   GitHubRepoBrowseType,
@@ -45,7 +44,6 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { isMobile } = useIsMobile();
 const message = useMessage();
 
 const browseLoading = ref(false);
@@ -593,9 +591,9 @@ function readFileAsBase64(file: File): Promise<string> {
 </script>
 
 <template>
-  <n-drawer :show="show" placement="right" :width="isMobile ? '100%' : 860" @update:show="handleDrawerVisibilityChange">
-    <n-drawer-content :title="drawerTitle" closable body-content-style="padding: 16px 18px">
-      <n-space vertical :size="12">
+  <n-drawer class="github-browser-drawer" :show="show" placement="right" width="min(860px, 100vw)" @update:show="handleDrawerVisibilityChange">
+    <n-drawer-content :title="drawerTitle" closable body-content-style="padding: var(--app-space-md)">
+      <n-space vertical :size="16">
         <n-alert type="info" :show-icon="false">
           {{ t('settings.storage.githubRepo.runtimeNotice') }}
         </n-alert>
@@ -806,6 +804,13 @@ function readFileAsBase64(file: File): Promise<string> {
 </template>
 
 <style scoped>
+.github-browser-drawer {
+  max-width: 100vw;
+  box-sizing: border-box;
+  border-radius: var(--app-radius-panel) 0 0 var(--app-radius-panel);
+  box-shadow: var(--app-shadow);
+}
+
 .github-browser-toolbar {
   align-items: center;
 }
@@ -838,20 +843,21 @@ function readFileAsBase64(file: File): Promise<string> {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: var(--app-space-sm);
   flex-wrap: wrap;
 }
 
 .github-browser-meta {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--app-space-sm);
   flex-wrap: wrap;
   color: #6b7280;
   font-size: 13px;
 }
 
 .github-table-wrapper {
+  min-width: 0;
   overflow-x: auto;
 }
 
@@ -861,16 +867,14 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 .github-upload-modal {
-  width: min(540px, calc(100vw - 180px));
-  margin: 24px auto;
-}
-
-.github-upload-modal :deep(.n-card) {
-  border-radius: 12px;
+  width: min(540px, calc(100vw - var(--app-space-xl)));
+  margin: var(--app-space-lg) auto;
+  border-radius: var(--app-radius-panel);
+  box-shadow: var(--app-shadow);
 }
 
 .github-upload-modal :deep(.n-card__content) {
-  padding: 18px 20px 14px;
+  padding: var(--app-space-md) var(--app-space-lg);
   max-height: min(70vh, 620px);
   overflow-y: auto;
 }
@@ -882,7 +886,7 @@ function readFileAsBase64(file: File): Promise<string> {
 
 .github-upload-modal-footer {
   border-top: 1px solid #f0f2f5;
-  padding-top: 12px;
+  padding-top: var(--app-space-md);
   display: flex;
   justify-content: center;
 }
@@ -892,16 +896,10 @@ function readFileAsBase64(file: File): Promise<string> {
   max-width: 460px;
 }
 
-@media (max-width: 1200px) {
-  .github-upload-modal {
-    width: min(520px, calc(100vw - 110px));
-  }
-}
-
 .github-upload-file-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--app-space-sm);
   flex-wrap: wrap;
 }
 
@@ -920,17 +918,17 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 .github-upload-alert {
-  margin-bottom: 10px;
+  margin-bottom: var(--app-space-sm);
 }
 
 @media (max-width: 768px) {
   .github-upload-modal {
-    width: calc(100vw - 20px);
-    margin: 8px auto;
+    width: calc(100vw - var(--app-space-md));
+    margin: var(--app-space-sm) auto;
   }
 
   .github-upload-modal :deep(.n-card__content) {
-    padding: 12px;
+    padding: var(--app-space-md);
     max-height: 74vh;
   }
 

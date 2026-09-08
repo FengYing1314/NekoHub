@@ -3,6 +3,7 @@ import { createI18n } from 'vue-i18n';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import GalleryDetailPage from './GalleryDetailPage.vue';
+import { getPublicAsset } from '../../api/public/public-assets.api';
 import zhCN from '../../locales/zh-CN';
 
 vi.mock('../../api/public/public-assets.api', () => ({ getPublicAsset: vi.fn().mockResolvedValue({
@@ -29,4 +30,21 @@ describe('public asset preview', () => {
     vi.unstubAllGlobals();
     wrapper.unmount();
   });
+  it('retries a failed detail request without leaving the current asset', async () => {
+    vi.mocked(getPublicAsset).mockRejectedValueOnce(new Error('Temporarily unavailable'));
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/gallery/:id', component: GalleryDetailPage }] });
+    await router.push('/gallery/asset-1');
+    const wrapper = mount(GalleryDetailPage, { global: { plugins: [router,
+      createI18n({ legacy: false, locale: 'zh-CN', messages: { 'zh-CN': zhCN } })] } });
+    await flushPromises();
+    expect(wrapper.get('.gallery-detail-error').text()).toContain('Temporarily unavailable');
+    await wrapper.get('.gallery-detail-error button').trigger('click');
+    await flushPromises();
+    expect(getPublicAsset).toHaveBeenLastCalledWith('asset-1');
+    expect(wrapper.find('.gallery-detail-error').exists()).toBe(false);
+    expect(wrapper.get('h1').text()).toBe('cat.png');
+    expect(router.currentRoute.value.path).toBe('/gallery/asset-1');
+    wrapper.unmount();
+  });
+
 });

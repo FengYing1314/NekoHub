@@ -66,7 +66,7 @@ function handleDelete(): void {
     :class="{ 'skill-node--selected': selected }"
     :style="{ '--skill-accent': accentColor }"
   >
-    <n-space align="start" :size="12">
+    <n-space align="start" :size="16">
       <div class="skill-node__icon">{{ nodeShortCode }}</div>
 
       <div class="skill-node__content">
@@ -90,27 +90,28 @@ function handleDelete(): void {
 <style scoped>
 .skill-node {
   min-width: 250px;
-  border-radius: 14px;
+  border-radius: var(--app-radius-card);
   border: 1px solid color-mix(in srgb, var(--skill-accent) 20%, #dbe4f0);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)),
     linear-gradient(135deg, color-mix(in srgb, var(--skill-accent) 6%, #ffffff), #ffffff);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+  box-shadow: var(--app-shadow-soft);
   overflow: visible;
 }
 
 .skill-node--selected {
-  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.16);
+  border-color: var(--skill-accent);
+  box-shadow: var(--app-shadow);
 }
 
 .skill-node :deep(.n-card__content) {
-  padding: 14px 16px;
+  padding: var(--app-space-md);
 }
 
 .skill-node__icon {
   width: 42px;
   height: 42px;
-  border-radius: 14px;
+  border-radius: var(--app-radius-card);
   background: color-mix(in srgb, var(--skill-accent) 16%, #f8fafc);
   color: var(--skill-accent);
   display: inline-flex;
@@ -126,13 +127,13 @@ function handleDelete(): void {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--app-space-sm);
 }
 
 .skill-node__title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--app-space-sm);
   justify-content: space-between;
 }
 
@@ -150,6 +151,6 @@ function handleDelete(): void {
 }
 
 .skill-node__delete {
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--app-shadow-soft);
 }
 </style>

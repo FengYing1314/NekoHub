@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import {
   NButton,
   NCard,
@@ -24,10 +24,14 @@ const authStore = useAuthStore();
 const appConfigStore = useAppConfigStore();
 
 const loading = ref(false);
+const submitted = ref(false);
+const loginError = ref('');
 const formModel = reactive({
   username: '',
   password: '',
 });
+const usernameInvalid = computed(() => submitted.value && !formModel.username.trim());
+const passwordInvalid = computed(() => submitted.value && !formModel.password);
 
 function normalizeRedirectPath(): string {
   const rawRedirect = route.query.redirect;
@@ -43,8 +47,12 @@ function normalizeRedirectPath(): string {
 }
 
 async function handleLogin(): Promise<void> {
-  if (!formModel.username.trim() || !formModel.password) {
-    message.warning(t('auth.login.validation.required'));
+  if (loading.value) {
+    return;
+  }
+  submitted.value = true;
+  loginError.value = '';
+  if (usernameInvalid.value || passwordInvalid.value) {
     return;
   }
 
@@ -58,7 +66,7 @@ async function handleLogin(): Promise<void> {
     message.success(t('auth.login.success'));
     await router.push(normalizeRedirectPath());
   } catch (error) {
-    message.error(`${t('auth.login.failed')}: ${extractApiErrorMessage(error)}`);
+    loginError.value = `${t('auth.login.failed')}: ${extractApiErrorMessage(error)}`;
   } finally {
     loading.value = false;
   }
@@ -84,27 +92,38 @@ function handleOpenConfigModal(): void {
           <n-text depth="3">{{ t('auth.login.description') }}</n-text>
         </div>
 
-        <n-form label-placement="top">
-          <n-form-item :label="t('auth.login.username')">
+        <n-form label-placement="top" @submit.prevent="handleLogin">
+          <n-form-item
+            :label="t('auth.login.username')"
+            :validation-status="usernameInvalid ? 'error' : undefined"
+            :feedback="usernameInvalid ? t('auth.login.validation.usernameRequired') : undefined"
+          >
             <n-input
               v-model:value="formModel.username"
               autocomplete="username"
               :placeholder="t('auth.login.usernamePlaceholder')"
-              @keyup.enter="handleLogin"
+              :input-props="{ 'aria-label': t('auth.login.username'), 'aria-invalid': usernameInvalid }"
+              @update:value="loginError = ''"
             />
           </n-form-item>
-          <n-form-item :label="t('auth.login.password')">
+          <n-form-item
+            :label="t('auth.login.password')"
+            :validation-status="passwordInvalid ? 'error' : undefined"
+            :feedback="passwordInvalid ? t('auth.login.validation.passwordRequired') : undefined"
+          >
             <n-input
               v-model:value="formModel.password"
               type="password"
               show-password-on="click"
               autocomplete="current-password"
               :placeholder="t('auth.login.passwordPlaceholder')"
-              @keyup.enter="handleLogin"
+              :input-props="{ 'aria-label': t('auth.login.password'), 'aria-invalid': passwordInvalid }"
+              @update:value="loginError = ''"
             />
           </n-form-item>
 
-          <n-button type="primary" block :loading="loading" @click="handleLogin">
+          <p v-if="loginError" class="login-error" role="alert">{{ loginError }}</p>
+          <n-button type="primary" attr-type="submit" block :loading="loading">
             {{ t('auth.login.submit') }}
           </n-button>
         </n-form>
@@ -115,16 +134,15 @@ function handleOpenConfigModal(): void {
 
 <style scoped>
 .login-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  padding: 20px;
+  padding: 80px var(--app-space-lg) var(--app-space-lg);
   overflow: hidden;
-  background: radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.16), transparent 48%),
-    radial-gradient(circle at 80% 72%, rgba(16, 185, 129, 0.16), transparent 46%),
-    linear-gradient(140deg, #f8fafc, #eef2ff 50%, #f0fdf4);
+  background: radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.08), transparent 48%),
+    radial-gradient(circle at 80% 72%, rgba(16, 185, 129, 0.08), transparent 46%), var(--app-bg-mid);
 }
 
 .login-bg-shape {
@@ -133,7 +151,7 @@ function handleOpenConfigModal(): void {
   height: 240px;
   border-radius: 999px;
   filter: blur(2px);
-  opacity: 0.8;
+  opacity: 0.35;
 }
 
 .login-bg-shape--top {
@@ -159,11 +177,12 @@ function handleOpenConfigModal(): void {
 }
 
 .login-card {
-  width: min(420px, calc(100vw - 24px));
-  border-radius: 20px;
+  width: min(420px, 100%);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-panel);
   backdrop-filter: blur(8px);
   background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 18px 52px rgba(15, 23, 42, 0.14);
+  box-shadow: var(--app-shadow);
 }
 
 .login-head {
@@ -176,7 +195,18 @@ function handleOpenConfigModal(): void {
   margin: 0;
   font-size: 28px;
   line-height: 1.2;
-  color: #0f172a;
+  color: var(--app-text-strong);
+}
+
+.login-error {
+  margin: 0 0 var(--app-space-md);
+  padding: 12px;
+  border: 1px solid #fecaca;
+  border-radius: var(--app-radius-control);
+  background: #fef2f2;
+  color: #991b1b;
+  overflow-wrap: anywhere;
+  font-size: 14px;
 }
 
 @media (max-width: 768px) {
@@ -185,7 +215,7 @@ function handleOpenConfigModal(): void {
   }
 
   .login-page {
-    padding: 12px;
+    padding: 72px 12px 24px;
   }
 }
 </style>

@@ -228,7 +228,7 @@ async function handleLogout(): Promise<void> {
       </nav>
     </n-layout-sider>
 
-    <n-drawer v-model:show="mobileDrawerVisible" placement="left" :width="280">
+    <n-drawer v-model:show="mobileDrawerVisible" placement="left" width="min(280px, calc(100vw - 24px))">
       <n-drawer-content :title="t('layout.navigation')" closable body-content-style="padding: 16px 12px">
         <div class="brand">NekoHub 管理台</div>
 
@@ -294,7 +294,7 @@ async function handleLogout(): Promise<void> {
   align-items: center;
   padding: 0 14px;
   margin-bottom: 14px;
-  font-family: 'Sora', 'Noto Sans SC', sans-serif;
+  font-family: inherit;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -315,7 +315,7 @@ async function handleLogout(): Promise<void> {
 .nav-item {
   width: 100%;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--app-radius-control);
   background: transparent;
   color: #334155;
   display: flex;
@@ -348,7 +348,7 @@ async function handleLogout(): Promise<void> {
 .nav-item__short {
   width: 28px;
   height: 28px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-control);
   background: rgba(226, 232, 240, 0.7);
   color: inherit;
   display: inline-flex;
@@ -398,7 +398,7 @@ async function handleLogout(): Promise<void> {
 }
 
 .app-content {
-  padding: 20px;
+  padding: var(--app-space-lg);
   min-width: 0;
 }
 
