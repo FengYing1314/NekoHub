@@ -17,7 +17,7 @@ public class AuthControllerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Login_Refresh_Logout_Rotation_Should_Work_EndToEnd()
+    public async Task Login_Refresh_Reuse_Should_Revoke_The_Session()
     {
         using var anonymousClient = CreateAnonymousClient();
 
@@ -45,6 +45,8 @@ public class AuthControllerTests : IntegrationTestBase
         var refreshed = await GetResponseDataAsync<AuthTokenResponse>(refreshResponse);
         refreshed.Should().NotBeNull();
         refreshed!.RefreshToken.Should().NotBe(session.RefreshToken);
+        // 正常轮换期间，已发送的请求仍可使用尚未过期的旧 access token。
+        (await anonymousClient.GetAsync("/api/v1/auth/me")).StatusCode.Should().Be(HttpStatusCode.OK);
 
         var replayResponse = await anonymousClient.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshTokenRequest(session.RefreshToken));
         replayResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -53,11 +55,32 @@ public class AuthControllerTests : IntegrationTestBase
         replayError!.Code.Should().Be("auth_refresh_token_reused");
 
         anonymousClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", refreshed.AccessToken);
-        var logoutResponse = await anonymousClient.PostAsJsonAsync("/api/v1/auth/logout", new RefreshTokenRequest(refreshed.RefreshToken));
-        logoutResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await anonymousClient.GetAsync("/api/v1/auth/me")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
         var loggedOutRefreshResponse = await anonymousClient.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshTokenRequest(refreshed.RefreshToken));
         loggedOutRefreshResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Logout_Should_Revoke_A_Valid_Rotated_Session_And_Keep_Other_Sessions()
+    {
+        using var client = CreateAnonymousClient();
+        var original = await GetResponseDataAsync<AuthTokenResponse>(await client.PostAsJsonAsync(
+            "/api/v1/auth/login", new LoginRequest(NekoHubApplicationFactory.BootstrapAdminUsername,
+                NekoHubApplicationFactory.BootstrapAdminPassword)));
+        var rotated = await GetResponseDataAsync<AuthTokenResponse>(await client.PostAsJsonAsync(
+            "/api/v1/auth/refresh", new RefreshTokenRequest(original!.RefreshToken)));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", rotated!.AccessToken);
+
+        var logout = await client.PostAsJsonAsync("/api/v1/auth/logout", new RefreshTokenRequest(rotated.RefreshToken));
+
+        logout.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await client.GetAsync("/api/v1/auth/me")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", original.AccessToken);
+        (await client.GetAsync("/api/v1/auth/me")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await Client.GetAsync("/api/v1/auth/me")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var refresh = await client.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshTokenRequest(rotated.RefreshToken));
+        refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

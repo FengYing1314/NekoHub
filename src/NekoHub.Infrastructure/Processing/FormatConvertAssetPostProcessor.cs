@@ -3,9 +3,11 @@ using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NekoHub.Application.Abstractions.Persistence;
+using NekoHub.Application.Abstractions.Processing;
 using NekoHub.Application.Abstractions.Storage;
 using NekoHub.Application.Assets.Services;
 using NekoHub.Application.Common.Exceptions;
+using NekoHub.Domain.Assets;
 using NekoHub.Infrastructure.Persistence;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
@@ -23,6 +25,8 @@ public sealed class FormatConvertAssetPostProcessor(
     AssetDbContext dbContext,
     IAssetRepository assetRepository,
     IAssetStorageTargetSelector assetStorageTargetSelector,
+    IAssetFileCleanupQueue assetFileCleanupQueue,
+    ThumbnailAssetPostProcessor thumbnailAssetPostProcessor,
     ILogger<FormatConvertAssetPostProcessor> logger)
 {
     public async Task ProcessAsync(
@@ -79,6 +83,8 @@ public sealed class FormatConvertAssetPostProcessor(
 
         var oldStorageKey = asset.StorageKey;
         StoredAssetObject? stored = null;
+        Guid? cleanupJobId = null;
+        AssetDerivative? invalidatedThumbnail = null;
 
         try
         {
@@ -90,6 +96,16 @@ public sealed class FormatConvertAssetPostProcessor(
             await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             try
             {
+                if (keepOriginal)
+                {
+                    // 保留原图作为可访问、可随资产删除的衍生记录，而不是无引用的存储对象。
+                    var originalId = Guid.CreateVersion7();
+                    dbContext.AssetDerivatives.Add(new AssetDerivative(
+                        originalId, asset.Id, $"original_{originalId:N}", asset.ContentType, asset.Extension,
+                        asset.Size, asset.Width, asset.Height, asset.StorageProvider, oldStorageKey, asset.PublicUrl));
+                }
+
+                invalidatedThumbnail = await AssetDerivedContentInvalidation.StageAsync(dbContext, asset.Id, cancellationToken);
                 asset.ReplaceStoredObject(
                     contentType: target.ContentType,
                     extension: target.Extension,
@@ -102,12 +118,42 @@ public sealed class FormatConvertAssetPostProcessor(
                     storedFileName: stored.StoredFileName,
                     publicUrl: stored.PublicUrl);
 
-                await assetRepository.SaveChangesAsync(cancellationToken);
+                var cleanupTargets = new List<AssetFileCleanupTarget>();
+                if (!keepOriginal && !string.Equals(oldStorageKey, stored.StorageKey, StringComparison.Ordinal))
+                {
+                    cleanupTargets.Add(new AssetFileCleanupTarget(storageLease.Storage.ProviderName, oldStorageKey));
+                }
+
+                if (invalidatedThumbnail is not null)
+                {
+                    cleanupTargets.Add(new AssetFileCleanupTarget(invalidatedThumbnail.StorageProvider, invalidatedThumbnail.StorageKey));
+                }
+
+                if (cleanupTargets.Count > 0)
+                {
+                    cleanupJobId = await assetFileCleanupQueue.EnqueueAsync(asset.Id, asset.StorageProviderProfileId, cleanupTargets, cancellationToken);
+                }
+                else
+                {
+                    await assetRepository.SaveChangesAsync(cancellationToken);
+                }
+
                 await transaction.CommitAsync(cancellationToken);
             }
             catch
             {
-                await transaction.RollbackAsync(cancellationToken);
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                }
+                catch (Exception rollbackException)
+                {
+                    logger.LogWarning(rollbackException, "Failed to rollback asset processing transaction. AssetId={AssetId}", asset.Id);
+                }
+                finally
+                {
+                    dbContext.ChangeTracker.Clear();
+                }
                 throw;
             }
         }
@@ -115,35 +161,20 @@ public sealed class FormatConvertAssetPostProcessor(
         {
             if (stored is not null)
             {
-                await TryDeleteStoredObjectAsync(storageLease.Storage, stored.StorageKey, asset.Id, cancellationToken);
+                await TryDeleteStoredObjectAsync(storageLease.Storage, stored.StorageKey, asset.Id, CancellationToken.None);
             }
 
             throw;
         }
 
-        if (!keepOriginal && !string.Equals(oldStorageKey, stored.StorageKey, StringComparison.Ordinal))
+        if (cleanupJobId.HasValue)
         {
-            await TryDeleteLegacyObjectAsync(storageLease.Storage, oldStorageKey, asset.Id, cancellationToken);
+            await assetFileCleanupQueue.TryProcessAsync(cleanupJobId.Value, CancellationToken.None);
         }
-    }
 
-    private async Task TryDeleteLegacyObjectAsync(
-        IAssetStorage storage,
-        string storageKey,
-        Guid assetId,
-        CancellationToken cancellationToken)
-    {
-        try
+        if (invalidatedThumbnail is not null)
         {
-            await storage.DeleteAsync(new DeleteStoredAssetRequest(storageKey), cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to delete legacy asset object after successful format conversion. AssetId={AssetId}, StorageKey={StorageKey}",
-                assetId,
-                storageKey);
+            await thumbnailAssetPostProcessor.ProcessAsync(context, cancellationToken);
         }
     }
 

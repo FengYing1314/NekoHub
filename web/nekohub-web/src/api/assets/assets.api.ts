@@ -3,6 +3,7 @@ import { unwrapAxiosApiResponse } from '../client/response';
 import type { JsonObject } from '../../types/api';
 import type {
   DeleteAssetInput,
+  AssetProcessingJobResponse,
   AssetListItemResponse,
   AssetPagedResponse,
   AssetResponse,
@@ -17,7 +18,8 @@ import type {
   RunAssetSkillResponse,
   UploadAssetInput,
 } from '../../types/assets';
-import type { RunAssetWorkflowResponse } from '../../types/workflows';
+import type { AssetStorageTargetResponse } from '../../types/storage';
+import type { AssetWorkflowOptionResponse, RunAssetWorkflowResponse } from '../../types/workflows';
 
 const ASSETS_BASE_PATH = '/api/v1/assets';
 
@@ -191,4 +193,30 @@ export const deleteAssetById = deleteAsset;
 export function buildAssetContentUrl(apiBaseUrl: string, id: string): string {
   const normalizedBaseUrl = apiBaseUrl.trim().replace(/\/+$/, '');
   return `${normalizedBaseUrl}${ASSETS_BASE_PATH}/${id}/content`;
+}
+
+export async function listAssetWorkflows(): Promise<AssetWorkflowOptionResponse[]> {
+  const response = await httpClient.get(`${ASSETS_BASE_PATH}/workflows`);
+  return unwrapAxiosApiResponse<AssetWorkflowOptionResponse[]>(response);
+}
+
+export async function listAssetStorageTargets(): Promise<AssetStorageTargetResponse[]> {
+  const response = await httpClient.get(`${ASSETS_BASE_PATH}/storage-targets`);
+  return unwrapAxiosApiResponse<AssetStorageTargetResponse[]>(response);
+}
+
+export async function getAssetJobs(assetId: string): Promise<AssetProcessingJobResponse[]> {
+  const response = await httpClient.get(`${ASSETS_BASE_PATH}/${assetId}/jobs`);
+  return unwrapAxiosApiResponse<AssetProcessingJobResponse[]>(response);
+}
+
+export async function retryAssetJob(assetId: string, jobId: string): Promise<void> {
+  await httpClient.post(`${ASSETS_BASE_PATH}/${assetId}/jobs/${jobId}/retry`);
+}
+
+export async function getAssetDerivativeContentBlob(assetId: string, kind: string): Promise<Blob> {
+  const response = await httpClient.get(`${ASSETS_BASE_PATH}/${assetId}/derivatives/${encodeURIComponent(kind)}/content`, {
+    responseType: 'blob',
+  });
+  return response.data as Blob;
 }

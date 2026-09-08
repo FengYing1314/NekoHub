@@ -81,6 +81,7 @@ services:
       Auth__ApiKey__Enabled: ${Auth__ApiKey__Enabled:-false}
       Auth__ApiKey__Keys__0: ${Auth__ApiKey__Keys__0:-}
       Storage__Provider: s3
+      Storage__PublicBaseUrl: ${S3_STORAGE_PUBLIC_BASE_URL:-http://localhost:5122/content}
       Storage__S3__ProviderName: ${Storage__S3__ProviderName:-s3}
       Storage__S3__Endpoint: ${Storage__S3__Endpoint:-http://minio:9000}
       Storage__S3__Bucket: ${Storage__S3__Bucket:-nekohub}
@@ -88,7 +89,7 @@ services:
       Storage__S3__AccessKey: ${Storage__S3__AccessKey:-minioadmin}
       Storage__S3__SecretKey: ${Storage__S3__SecretKey:-minioadmin}
       Storage__S3__ForcePathStyle: ${Storage__S3__ForcePathStyle:-true}
-      Storage__S3__PublicBaseUrl: ${Storage__S3__PublicBaseUrl:-http://localhost:9000/nekohub}
+      Storage__S3__PublicBaseUrl: ${S3_STORAGE_PUBLIC_BASE_URL:-http://localhost:5122/content}
     volumes:
       - ./data:/app/storage
     restart: unless-stopped
@@ -123,7 +124,7 @@ services:
           sleep 2
         done
         /usr/bin/mc mb -p "local/$$MINIO_BUCKET" || true
-        /usr/bin/mc anonymous set download "local/$$MINIO_BUCKET" || true
+        /usr/bin/mc anonymous set none "local/$$MINIO_BUCKET"
 
 volumes:
   postgres-data:

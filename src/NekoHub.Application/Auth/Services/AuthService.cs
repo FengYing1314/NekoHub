@@ -32,8 +32,10 @@ public sealed class AuthService(
         var issuedRefreshToken = refreshTokenService.IssueRefreshToken(user, accessToken.JwtId);
 
         user.RecordLogin();
-        await refreshTokenRepository.AddAsync(issuedRefreshToken.Entity, cancellationToken);
-        await userRepository.SaveChangesAsync(cancellationToken);
+        if (!await refreshTokenRepository.TryIssueAsync(user, issuedRefreshToken.Entity, cancellationToken))
+        {
+            throw new UnauthorizedException("auth_invalid_credentials", "Invalid username or password.");
+        }
 
         return new AuthSessionDto(
             AccessToken: accessToken.AccessToken,
@@ -72,8 +74,7 @@ public sealed class AuthService(
 
         if (storedToken.IsExpired(nowUtc))
         {
-            storedToken.Revoke();
-            await userRepository.SaveChangesAsync(cancellationToken);
+            await refreshTokenRepository.RevokeSessionAsync(storedToken, cancellationToken);
             throw new UnauthorizedException("auth_refresh_token_expired", "Refresh token has expired.");
         }
 
@@ -81,9 +82,11 @@ public sealed class AuthService(
         var accessToken = jwtTokenService.CreateAccessToken(user, permissions);
         var nextRefreshToken = refreshTokenService.IssueRefreshToken(user, accessToken.JwtId);
 
-        storedToken.Revoke(nextRefreshToken.Entity.Id);
-        await refreshTokenRepository.AddAsync(nextRefreshToken.Entity, cancellationToken);
-        await userRepository.SaveChangesAsync(cancellationToken);
+        if (!await refreshTokenRepository.TryRotateAsync(storedToken, nextRefreshToken.Entity, cancellationToken))
+        {
+            await RevokeActiveTokensAsync(user.Id, cancellationToken);
+            throw new UnauthorizedException("auth_refresh_token_reused", "Refresh token has already been used.");
+        }
 
         return new AuthSessionDto(
             AccessToken: accessToken.AccessToken,
@@ -102,13 +105,12 @@ public sealed class AuthService(
 
         var tokenHash = refreshTokenService.ComputeHash(refreshToken);
         var storedToken = await refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
-        if (storedToken is null || storedToken.IsRevoked)
+        if (storedToken is null)
         {
             return;
         }
 
-        storedToken.Revoke();
-        await userRepository.SaveChangesAsync(cancellationToken);
+        await refreshTokenRepository.RevokeSessionAsync(storedToken, cancellationToken);
     }
 
     public async Task<AuthenticatedUserDto> GetCurrentUserAsync(
@@ -123,15 +125,9 @@ public sealed class AuthService(
         return ToAuthenticatedUserDto(user, permissions);
     }
 
-    private async Task RevokeActiveTokensAsync(Guid userId, CancellationToken cancellationToken)
+    private Task RevokeActiveTokensAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var tokens = await refreshTokenRepository.ListByUserIdAsync(userId, cancellationToken);
-        foreach (var token in tokens.Where(static token => !token.IsRevoked))
-        {
-            token.Revoke();
-        }
-
-        await userRepository.SaveChangesAsync(cancellationToken);
+        return refreshTokenRepository.RevokeAllAndSaveChangesAsync(userId, cancellationToken);
     }
 
     private static void EnsureActiveUser(User user)

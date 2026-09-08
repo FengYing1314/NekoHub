@@ -15,7 +15,9 @@ public sealed class AssetCommandService(
     IAssetDerivativeRepository assetDerivativeRepository,
     IAssetStorageTargetSelector assetStorageTargetSelector,
     IAssetMetadataExtractor metadataExtractor,
-    IAssetProcessingQueue assetProcessingQueue) : IAssetCommandService
+    IAssetProcessingQueue assetProcessingQueue,
+    IAssetFileCleanupQueue assetFileCleanupQueue,
+    IAssetMutationLock assetMutationLock) : IAssetCommandService
 {
     private const string DefaultCommitMessage = "Automated commit by NekoHub";
 
@@ -97,28 +99,47 @@ public sealed class AssetCommandService(
         asset.UpdateAccessibleMetadata(command.Description, command.AltText);
         asset.MarkReady(stored.PublicUrl);
 
-        await assetRepository.AddAsync(asset, cancellationToken);
-        await assetRepository.SaveChangesAsync(cancellationToken);
-
-        if (command.RunEnrichment)
+        try
         {
-            // 入队时直接携带创建后快照，避免消费者再回查数据库时读到尚未补齐的上下文。
-            await assetProcessingQueue.EnqueueAsync(
-                new AssetProcessingRequest(
-                    Asset: new AssetCreatedProcessingContext(
-                        AssetId: asset.Id,
-                        StorageProvider: asset.StorageProvider,
-                        StorageKey: asset.StorageKey,
-                        ContentType: asset.ContentType,
-                        Extension: asset.Extension,
-                        Size: asset.Size,
-                        Width: asset.Width,
-                        Height: asset.Height,
-                        ChecksumSha256: asset.ChecksumSha256,
-                        PublicUrl: asset.PublicUrl,
-                        CreatedAtUtc: asset.CreatedAtUtc),
-                    TriggerSource: "upload"),
-                cancellationToken);
+            await assetRepository.AddAsync(asset, cancellationToken);
+            if (command.RunEnrichment)
+            {
+                // 入队时直接携带创建后快照，避免消费者再回查数据库时读到尚未补齐的上下文。
+                await assetProcessingQueue.EnqueueAsync(
+                    new AssetProcessingRequest(
+                        Asset: new AssetCreatedProcessingContext(
+                            AssetId: asset.Id,
+                            StorageProvider: asset.StorageProvider,
+                            StorageKey: asset.StorageKey,
+                            ContentType: asset.ContentType,
+                            Extension: asset.Extension,
+                            Size: asset.Size,
+                            Width: asset.Width,
+                            Height: asset.Height,
+                            ChecksumSha256: asset.ChecksumSha256,
+                            PublicUrl: asset.PublicUrl,
+                            CreatedAtUtc: asset.CreatedAtUtc),
+                        TriggerSource: "upload"),
+                    cancellationToken);
+            }
+            else
+            {
+                await assetRepository.SaveChangesAsync(cancellationToken);
+            }
+        }
+        catch (Exception saveException)
+        {
+            // 请求取消也必须尝试回收已经写入的对象。
+            try
+            {
+                await storage.DeleteAsync(new DeleteStoredAssetRequest(stored.StorageKey), CancellationToken.None);
+            }
+            catch (Exception cleanupException)
+            {
+                throw new AggregateException("Asset persistence and stored object cleanup both failed.", saveException, cleanupException);
+            }
+
+            throw;
         }
 
         return ToDto(asset);
@@ -126,6 +147,7 @@ public sealed class AssetCommandService(
 
     public async Task<AssetDto> PatchAsync(PatchAssetMetadataCommand command, CancellationToken cancellationToken = default)
     {
+        await using var mutationLock = await assetMutationLock.AcquireAsync(command.AssetId, cancellationToken);
         var asset = await assetRepository.GetByIdAsync(command.AssetId, cancellationToken);
         if (asset is null)
         {
@@ -154,40 +176,28 @@ public sealed class AssetCommandService(
 
     public async Task<DeleteAssetResultDto> DeleteAsync(DeleteAssetCommand command, CancellationToken cancellationToken = default)
     {
+        await using var mutationLock = await assetMutationLock.AcquireAsync(command.AssetId, cancellationToken);
         var asset = await assetRepository.GetByIdAsync(command.AssetId, cancellationToken);
         if (asset is null)
         {
             throw new NotFoundException("asset_not_found", $"Asset '{command.AssetId}' was not found.");
         }
 
-        // 第一版采用硬删除：先删除存储对象，再删除资产记录，保证资源不会残留为“孤儿文件”。
-        await using var storageLease = await assetStorageTargetSelector.ResolveReadTargetAsync(
-            asset.StorageProviderProfileId,
-            asset.StorageProvider,
-            cancellationToken);
-        await storageLease.Storage.DeleteAsync(
-            new DeleteStoredAssetRequest(
-                StorageKey: asset.StorageKey,
-                CommitMessage: ResolveCommitMessage(command.CommitMessage)),
-            cancellationToken);
-
         var derivatives = await assetDerivativeRepository.GetBySourceAssetIdAsync(asset.Id, cancellationToken);
-        foreach (var derivative in derivatives)
+        var commitMessage = ResolveCommitMessage(command.CommitMessage);
+        var cleanupTargets = new List<AssetFileCleanupTarget>
         {
-            await using var derivativeStorageLease = await assetStorageTargetSelector.ResolveReadTargetAsync(
-                asset.StorageProviderProfileId,
-                derivative.StorageProvider,
-                cancellationToken);
-            await derivativeStorageLease.Storage.DeleteAsync(
-                new DeleteStoredAssetRequest(
-                    StorageKey: derivative.StorageKey,
-                    CommitMessage: ResolveCommitMessage(command.CommitMessage)),
-                cancellationToken);
-        }
+            new(asset.StorageProvider, asset.StorageKey, commitMessage)
+        };
+        cleanupTargets.AddRange(derivatives.Select(derivative =>
+            new AssetFileCleanupTarget(derivative.StorageProvider, derivative.StorageKey, commitMessage)));
 
         await assetDerivativeRepository.DeleteRangeAsync(derivatives, cancellationToken);
         await assetRepository.DeleteAsync(asset, cancellationToken);
-        await assetDerivativeRepository.SaveChangesAsync(cancellationToken);
+        // 删除记录与待清理对象在同一次提交中持久化，物理删除失败由后台恢复。
+        var cleanupJobId = await assetFileCleanupQueue.EnqueueAsync(
+            asset.Id, asset.StorageProviderProfileId, cleanupTargets, cancellationToken);
+        await assetFileCleanupQueue.TryProcessAsync(cleanupJobId, CancellationToken.None);
 
         return new DeleteAssetResultDto(
             Id: command.AssetId,

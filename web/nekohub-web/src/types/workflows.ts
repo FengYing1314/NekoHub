@@ -11,6 +11,8 @@ export interface WorkflowProfileResponse {
   updatedAtUtc: string;
 }
 
+export type AssetWorkflowOptionResponse = Pick<WorkflowProfileResponse, 'id' | 'name' | 'description' | 'isAutoRun'>;
+
 export interface CreateWorkflowProfileRequest {
   name: string;
   description?: string | null;
@@ -21,6 +23,7 @@ export interface CreateWorkflowProfileRequest {
 export type UpdateWorkflowProfileRequest = CreateWorkflowProfileRequest;
 
 export interface RunAssetWorkflowResponse {
+  jobId: string;
   assetId: string;
   workflowId: string;
   skillIds: string[];

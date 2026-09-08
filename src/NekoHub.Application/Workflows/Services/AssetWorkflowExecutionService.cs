@@ -55,6 +55,7 @@ public sealed class AssetWorkflowExecutionService(
         }
 
         // 工作流运行接口只负责排队，不在 HTTP 请求线程中同步执行整条 skill 管线。
+        var jobId = Guid.CreateVersion7();
         await assetProcessingQueue.EnqueueAsync(
             new AssetProcessingRequest(
                 Asset: processingContext,
@@ -62,13 +63,15 @@ public sealed class AssetWorkflowExecutionService(
                 WorkflowProfileId: workflow.Id,
                 Skills: skills
                     .Select(skill => new AssetProcessingSkillRequest(skill.SkillId, skill.Parameters))
-                    .ToList()),
+                    .ToList(),
+                JobId: jobId),
             cancellationToken);
 
         return new QueuedWorkflowRunResultDto(
             AssetId: assetId,
             WorkflowId: workflow.Id,
-            SkillIds: skills.Select(skill => skill.SkillId).ToList());
+            SkillIds: skills.Select(skill => skill.SkillId).ToList(),
+            JobId: jobId);
     }
 
     private static AssetCreatedProcessingContext ToProcessingContext(AssetDetailsQueryDto asset)

@@ -25,6 +25,7 @@ public sealed class AssetProcessingDispatcher(
             return;
         }
 
+        var failures = new List<string>();
         foreach (var skill in skills)
         {
             try
@@ -35,14 +36,20 @@ public sealed class AssetProcessingDispatcher(
                     cancellationToken);
                 if (!runResult.Succeeded)
                 {
+                    failures.Add(skill.Definition.Name);
                     logger.LogWarning(
                         "Skill finished with failed steps. Skill={SkillName}, AssetId={AssetId}",
                         skill.Definition.Name,
                         request.Asset.AssetId);
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception exception)
             {
+                failures.Add(skill.Definition.Name);
                 // Skill 管线语义：单个 skill 失败不影响上传主链路，继续执行后续 skill。
                 logger.LogError(
                     exception,
@@ -50,6 +57,11 @@ public sealed class AssetProcessingDispatcher(
                     skill.Definition.Name,
                     request.Asset.AssetId);
             }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException($"Skills failed: {string.Join(", ", failures)}. Check execution records before retrying.");
         }
     }
 

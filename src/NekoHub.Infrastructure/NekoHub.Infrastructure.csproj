@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="NekoHub.Api.IntegrationTests" />
     <ProjectReference Include="..\NekoHub.Application\NekoHub.Application.csproj" />
     <ProjectReference Include="..\NekoHub.Domain\NekoHub.Domain.csproj" />
   </ItemGroup>

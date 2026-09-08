@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useAuthStore } from './auth.store';
 import { useAppConfigStore, validateAppConfigPayload } from './app-config';
 
 describe('app-config store', () => {
@@ -97,4 +98,22 @@ describe('app-config store', () => {
     expect(store.apiBaseUrl).toBe('https://stable.example.com');
     expect(localStorage.getItem('nekohub.app-config')).toContain('https://stable.example.com');
   });
+  it('preserves equivalent backend sessions and clears sessions when the backend changes', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { maxUploadSizeBytes: 1024, allowedContentTypes: ['image/png'] } }),
+    }));
+    const config = useAppConfigStore();
+    config.apiBaseUrl = 'https://api.example.com';
+    const auth = useAuthStore();
+    auth.applySession({ accessToken: 'a', refreshToken: 'r', user: {
+      id: 'u-1', username: 'alice', role: 'user', isActive: true, permissions: [],
+    } });
+    await config.setConfig({ apiBaseUrl: 'https://API.example.com:443/' });
+    expect(auth.isAuthenticated).toBe(true);
+    await config.setConfig({ apiBaseUrl: 'https://other.example.com' });
+    expect(auth.isAuthenticated).toBe(false);
+    expect(localStorage.getItem('nekohub.auth-session')).toBeNull();
+  });
+
 });

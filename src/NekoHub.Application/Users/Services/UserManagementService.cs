@@ -13,7 +13,8 @@ public sealed class UserManagementService(
     IUserRepository userRepository,
     IUserPermissionGrantRepository userPermissionGrantRepository,
     IPasswordHashService passwordHashService,
-    IPermissionService permissionService) : IUserManagementService
+    IPermissionService permissionService,
+    IRefreshTokenRepository refreshTokenRepository) : IUserManagementService
 {
     public async Task<IReadOnlyList<UserListItemDto>> ListAsync(
         CurrentActor actor,
@@ -102,6 +103,10 @@ public sealed class UserManagementService(
         EnsureCanManageTarget(actor, user);
         var nextRole = command.Role.IsSet ? command.Role.Value : user.Role;
         EnsureRoleTransitionAllowed(actor, user, nextRole);
+        if (command.IsActive.IsSet)
+        {
+            await EnsureCanChangeStatusAsync(actor, user, command.IsActive.Value, cancellationToken);
+        }
 
         var normalizedUsername = command.Username.IsSet
             ? NormalizeUsername(command.Username.Value ?? user.Username)
@@ -140,16 +145,7 @@ public sealed class UserManagementService(
             ?? throw new NotFoundException("user_not_found", $"User '{command.UserId}' was not found.");
 
         EnsureCanManageTarget(actor, user);
-
-        if (user.Role == UserRole.SuperAdmin && !command.IsActive)
-        {
-            throw new ForbiddenException("user_super_admin_disable_forbidden", "Super admin account cannot be disabled.");
-        }
-
-        if (!actor.IsApiKey && actor.UserId == user.Id && !command.IsActive)
-        {
-            throw new ForbiddenException("user_self_disable_forbidden", "You cannot disable your own account.");
-        }
+        await EnsureCanChangeStatusAsync(actor, user, command.IsActive, cancellationToken);
 
         user.SetActive(command.IsActive);
         await userRepository.SaveChangesAsync(cancellationToken);
@@ -168,7 +164,7 @@ public sealed class UserManagementService(
         ValidatePassword(command.NewPassword);
 
         user.SetPasswordHash(passwordHashService.HashPassword(user, command.NewPassword));
-        await userRepository.SaveChangesAsync(cancellationToken);
+        await refreshTokenRepository.RevokeAllAndSaveChangesAsync(user.Id, cancellationToken);
     }
 
     public async Task<UserDetailDto> UpdatePermissionsAsync(
@@ -300,6 +296,36 @@ public sealed class UserManagementService(
             throw new ForbiddenException(
                 "user_self_role_change_forbidden",
                 "You cannot change your own role.");
+        }
+
+        if (!actor.IsApiKey && actor.Role == UserRole.Admin && nextRole != UserRole.User)
+        {
+            throw new ForbiddenException("user_role_change_forbidden", "Admins can only manage the user role.");
+        }
+    }
+
+    private async Task EnsureCanChangeStatusAsync(
+        CurrentActor actor,
+        User target,
+        bool isActive,
+        CancellationToken cancellationToken)
+    {
+        if (target.Role == UserRole.SuperAdmin && !isActive)
+        {
+            throw new ForbiddenException("user_super_admin_disable_forbidden", "Super admin account cannot be disabled.");
+        }
+
+        if (!actor.IsApiKey && actor.UserId == target.Id && !isActive)
+        {
+            throw new ForbiddenException("user_self_disable_forbidden", "You cannot disable your own account.");
+        }
+
+        if (!actor.IsApiKey
+            && (actor.UserId is not { } userId
+                || actor.Role is not { } role
+                || !await permissionService.HasPermissionAsync(userId, role, PermissionCatalog.UsersDisable, cancellationToken)))
+        {
+            throw new ForbiddenException("user_status_change_forbidden", "You do not have permission to change user status.");
         }
     }
 

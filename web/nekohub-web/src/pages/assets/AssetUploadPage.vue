@@ -17,12 +17,11 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import PageHeader from '../../components/common/PageHeader.vue';
-import { uploadAsset } from '../../api/assets/assets.api';
+import { uploadAsset, listAssetStorageTargets } from '../../api/assets/assets.api';
 import { extractApiErrorMessage } from '../../api/client/error';
-import { getStorageProviderOverview } from '../../api/system/storage.api';
 import { useAppConfigStore } from '../../stores/app-config';
 import { runtimeConfig } from '../../config/runtime';
-import type { StorageProviderOverviewResponse } from '../../types/storage';
+import type { AssetStorageTargetResponse } from '../../types/storage';
 import { formatFileSize } from '../../utils/format';
 
 const DEFAULT_ALLOWED_IMAGE_CONTENT_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
@@ -46,7 +45,8 @@ const uploadedAssetId = ref<string | null>(null);
 const statusText = ref('');
 const statusType = ref<'success' | 'error' | 'info' | null>(null);
 const fileValidationError = ref('');
-const storageOverview = ref<StorageProviderOverviewResponse | null>(null);
+const storageTargets = ref<AssetStorageTargetResponse[]>([]);
+const defaultStorageTarget = computed(() => storageTargets.value.find((target) => target.isDefault));
 const storageOverviewLoading = ref(false);
 const storageOverviewLoadFailed = ref(false);
 
@@ -59,7 +59,8 @@ const formModel = reactive({
   commitMessage: '',
 });
 
-const canSubmit = computed(() => !submitting.value && !!selectedFile.value && !fileValidationError.value);
+const canSubmit = computed(() => !submitting.value && !!selectedFile.value && !fileValidationError.value
+  && Boolean(selectedStorageProfile.value || defaultStorageTarget.value));
 const showBackgroundProcessingHint = computed(() => uploadedAssetId.value !== null && statusType.value === 'success');
 const resolvedMaxUploadSizeBytes = computed(() => appConfigStore.maxUploadSizeBytes || runtimeConfig.maxUploadSizeBytes);
 const allowedImageContentTypes = computed(() => (
@@ -88,28 +89,14 @@ const visibilityHint = computed(() => (
     : t('asset.upload.visibilityPrivateHint')
 ));
 const enabledStorageProfiles = computed(() => (
-  storageOverview.value?.profiles.filter((profile) => profile.isEnabled) ?? []
+  storageTargets.value.filter((profile) => profile.id !== null)
 ));
 const selectedStorageProfile = computed(() => (
   enabledStorageProfiles.value.find((profile) => profile.id === formModel.storageProviderProfileId) ?? null
 ));
-const isGitHubWriteTarget = computed(() => {
-  const overview = storageOverview.value;
-  if (!overview) {
-    return false;
-  }
-
-  if (selectedStorageProfile.value) {
-    return selectedStorageProfile.value.providerType === 'github-repo';
-  }
-
-  if (overview.defaultWriteProfile ?? overview.defaultProfile) {
-    const defaultProfile = overview.defaultWriteProfile ?? overview.defaultProfile;
-    return defaultProfile?.isEnabled && defaultProfile.providerType === 'github-repo';
-  }
-
-  return overview.runtime.providerType === 'github-repo';
-});
+const isGitHubWriteTarget = computed(() => (
+  (selectedStorageProfile.value ?? defaultStorageTarget.value)?.providerType === 'github-repo'
+));
 
 function getStorageProviderTypeLabel(providerType: string): string {
   switch (providerType) {
@@ -127,13 +114,10 @@ function getStorageProviderTypeLabel(providerType: string): string {
 }
 
 const storageProfileOptions = computed(() => [
-  {
-    label: t('asset.upload.defaultStorageTarget'),
-    value: '',
-  },
+  ...(defaultStorageTarget.value ? [{ label: t('asset.upload.defaultStorageTarget'), value: '' }] : []),
   ...enabledStorageProfiles.value.map((profile) => ({
     label: `${profile.displayName || profile.name} (${getStorageProviderTypeLabel(profile.providerType)})`,
-    value: profile.id,
+    value: profile.id!,
   })),
 ]);
 const storageTargetHint = computed(() => {
@@ -144,20 +128,11 @@ const storageTargetHint = computed(() => {
     });
   }
 
-  if (storageOverview.value?.defaultWriteProfile ?? storageOverview.value?.defaultProfile) {
-    const defaultProfile = storageOverview.value?.defaultWriteProfile ?? storageOverview.value?.defaultProfile;
+  if (defaultStorageTarget.value) {
+    const target = defaultStorageTarget.value;
     return t('asset.upload.storageTargetDefaultHint', {
-      name: defaultProfile?.displayName || defaultProfile?.name || '-',
-      providerType: defaultProfile?.providerType
-        ? getStorageProviderTypeLabel(defaultProfile.providerType)
-        : '-',
-    });
-  }
-
-  if (storageOverview.value) {
-    return t('asset.upload.storageTargetRuntimeHint', {
-      providerType: getStorageProviderTypeLabel(storageOverview.value.runtime.providerType),
-      providerName: storageOverview.value.runtime.providerName,
+      name: target.displayName || target.name,
+      providerType: getStorageProviderTypeLabel(target.providerType),
     });
   }
 
@@ -165,7 +140,9 @@ const storageTargetHint = computed(() => {
     return t('settings.storage.loadFailed');
   }
 
-  return t('asset.upload.storageTargetLoadingHint');
+  return storageOverviewLoading.value
+    ? t('asset.upload.storageTargetLoadingHint')
+    : t('asset.upload.storageTargetUnavailableHint');
 });
 const enrichmentHint = computed(() => (
   formModel.runEnrichment
@@ -231,9 +208,9 @@ async function loadStorageOverview(): Promise<void> {
   storageOverviewLoadFailed.value = false;
 
   try {
-    storageOverview.value = await getStorageProviderOverview();
+    storageTargets.value = await listAssetStorageTargets();
   } catch {
-    storageOverview.value = null;
+    storageTargets.value = [];
     storageOverviewLoadFailed.value = true;
   } finally {
     storageOverviewLoading.value = false;
@@ -247,7 +224,7 @@ async function handleSubmit(): Promise<void> {
     return;
   }
 
-  if (!selectedFile.value) {
+  if (!selectedFile.value || !canSubmit.value) {
     return;
   }
 
@@ -381,7 +358,7 @@ onMounted(() => {
             <n-select
               v-model:value="formModel.storageProviderProfileId"
               :options="storageProfileOptions"
-              :disabled="submitting || storageOverviewLoading || storageOverview === null"
+              :disabled="submitting || storageOverviewLoading || storageTargets.length === 0"
             />
             <div class="form-hint">{{ storageTargetHint }}</div>
             <n-alert v-if="storageOverviewLoadFailed" type="warning" :show-icon="false">

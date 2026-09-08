@@ -20,6 +20,28 @@ public class AssetCommandServiceTests
 {
     private const string DefaultCommitMessage = "Automated commit by NekoHub";
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Upload_When_Persistence_Fails_Should_Delete_Stored_Object(bool runEnrichment)
+    {
+        var failure = new InvalidOperationException("simulated persistence failure");
+        var queue = new FakeAssetProcessingQueue { Failure = runEnrichment ? failure : null };
+        var repository = new FakeAssetRepository { SaveFailure = runEnrichment ? null : failure };
+        var storage = new FakeAssetStorage();
+        var service = CreateService(queue, storage, repository);
+        await using var content = new MemoryStream([1, 2, 3, 4]);
+        using var cancellation = new CancellationTokenSource();
+
+        var action = () => service.UploadAsync(new UploadAssetCommand(
+            content, "failed-upload.png", "image/png", content.Length, null, null, null, true,
+            RunEnrichment: runEnrichment), cancellation.Token);
+
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("simulated persistence failure");
+        storage.DeleteRequests.Should().ContainSingle().Which.StorageKey.Should().Be("stored/failed-upload.png");
+        storage.LastDeleteCancellationToken.CanBeCanceled.Should().BeFalse();
+    }
+
     [Fact]
     public async Task Upload_With_RunEnrichment_False_Should_Skip_Queue()
     {
@@ -182,11 +204,14 @@ public class AssetCommandServiceTests
             new FakeAssetDerivativeRepository(),
             new FakeAssetStorageTargetSelector(resolvedStorage),
             new FakeAssetMetadataExtractor(),
-            queue);
+            queue,
+            new FakeAssetFileCleanupQueue(resolvedStorage),
+            new FakeAssetMutationLock());
     }
 
     private sealed class FakeAssetRepository : IAssetRepository
     {
+        public Exception? SaveFailure { get; init; }
         private readonly List<Asset> _items = [];
 
         public Task AddAsync(Asset asset, CancellationToken cancellationToken = default)
@@ -238,7 +263,7 @@ public class AssetCommandServiceTests
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
+            return SaveFailure is null ? Task.CompletedTask : Task.FromException(SaveFailure);
         }
     }
 
@@ -299,6 +324,7 @@ public class AssetCommandServiceTests
 
     private sealed class FakeAssetStorage : IAssetStorage
     {
+        public CancellationToken LastDeleteCancellationToken { get; private set; }
         public StoreAssetRequest? LastStoreRequest { get; private set; }
 
         public List<DeleteStoredAssetRequest> DeleteRequests { get; } = [];
@@ -346,6 +372,7 @@ public class AssetCommandServiceTests
 
         public Task DeleteAsync(DeleteStoredAssetRequest request, CancellationToken cancellationToken = default)
         {
+            LastDeleteCancellationToken = cancellationToken;
             DeleteRequests.Add(request);
             return Task.CompletedTask;
         }
@@ -376,6 +403,7 @@ public class AssetCommandServiceTests
 
     private sealed class FakeAssetProcessingQueue : IAssetProcessingQueue
     {
+        public Exception? Failure { get; init; }
         public int EnqueueCount { get; private set; }
 
         public AssetProcessingRequest? LastRequest { get; private set; }
@@ -384,6 +412,11 @@ public class AssetCommandServiceTests
             AssetProcessingRequest request,
             CancellationToken cancellationToken = default)
         {
+            if (Failure is not null)
+            {
+                return ValueTask.FromException(Failure);
+            }
+
             EnqueueCount += 1;
             LastRequest = request;
             return ValueTask.CompletedTask;
@@ -395,5 +428,33 @@ public class AssetCommandServiceTests
             await Task.CompletedTask;
             yield break;
         }
+    }
+
+    private sealed class FakeAssetFileCleanupQueue(FakeAssetStorage storage) : IAssetFileCleanupQueue
+    {
+        private IReadOnlyList<AssetFileCleanupTarget> _targets = [];
+
+        public Task<Guid> EnqueueAsync(Guid assetId, Guid? storageProviderProfileId,
+            IReadOnlyList<AssetFileCleanupTarget> targets, CancellationToken cancellationToken = default)
+        {
+            _targets = targets;
+            return Task.FromResult(Guid.CreateVersion7());
+        }
+
+        public async Task TryProcessAsync(Guid jobId, CancellationToken cancellationToken = default)
+        {
+            foreach (var target in _targets)
+            {
+                await storage.DeleteAsync(new DeleteStoredAssetRequest(target.StorageKey, target.CommitMessage), cancellationToken);
+            }
+        }
+    }
+
+    private sealed class FakeAssetMutationLock : IAssetMutationLock, IAsyncDisposable
+    {
+        public Task<IAsyncDisposable> AcquireAsync(Guid assetId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IAsyncDisposable>(this);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

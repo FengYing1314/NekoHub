@@ -38,11 +38,13 @@ public sealed class EfCoreAssetRepository(AssetDbContext dbContext) : IAssetRepo
             .SingleOrDefaultAsync(x => x.StorageKey == storageKey, cancellationToken);
     }
 
-    public Task<bool> AnyByStorageProviderProfileIdAsync(Guid storageProviderProfileId, CancellationToken cancellationToken = default)
+    public async Task<bool> AnyByStorageProviderProfileIdAsync(Guid storageProviderProfileId, CancellationToken cancellationToken = default)
     {
-        return dbContext.Assets
+        return await dbContext.Assets
             .AsNoTracking()
-            .AnyAsync(x => x.StorageProviderProfileId == storageProviderProfileId, cancellationToken);
+            .AnyAsync(x => x.StorageProviderProfileId == storageProviderProfileId, cancellationToken)
+            || await dbContext.AssetProcessingJobs.AnyAsync(x => x.StorageProviderProfileId == storageProviderProfileId
+                && x.Kind == "cleanup" && x.Status != "succeeded", cancellationToken);
     }
 
     public async Task<PagedResult<Asset>> GetPagedAsync(GetAssetsPagedQuery query, CancellationToken cancellationToken = default)

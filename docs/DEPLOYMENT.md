@@ -1,6 +1,6 @@
 # NekoHub 部署说明
 
-这份文档描述当前仓库已经实现并验证通过的部署方式，重点说明公开站、鉴权模型、部署级配置与用户级数据的边界。
+这份文档描述当前仓库的部署配置，重点说明公开站、鉴权模型、部署级配置与用户级数据的边界。
 
 ## 1. 先理解现在的系统模型
 
@@ -27,11 +27,11 @@ NekoHub 现在有两套前端入口，共用一套后端：
   - `POST /api/v1/auth/refresh`
   - `POST /api/v1/auth/logout`
   - `GET /api/v1/auth/me`
+  - `/api/v1/users`（仅 JWT 用户管理）
 - 管理接口
   - `/api/v1/assets`
   - `/api/v1/system/storage`
   - `/api/v1/system/ai/providers`
-  - `/api/v1/users`
   - 这些接口接受 `JWT` 或 `API key`
 - 机器接口
   - `/mcp`
@@ -154,8 +154,8 @@ curl "http://localhost:5121/api/v1/public/assets?page=1&pageSize=20"
 再验证登录：
 
 ```bash
-curl -X POST "http://localhost:5121/api/v1/auth/login" ^
-  -H "Content-Type: application/json" ^
+curl -X POST "http://localhost:5121/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
   -d "{\"username\":\"admin\",\"password\":\"<superadmin-password>\"}"
 ```
 
@@ -175,20 +175,19 @@ curl -X POST "http://localhost:5121/api/v1/auth/login" ^
 | `Auth__Jwt__Audience` | 否 | JWT Audience，默认 `NekoHub.Admin` |
 | `Auth__Jwt__AccessTokenMinutes` | 否 | access token 过期分钟数，默认 `15` |
 | `Auth__Jwt__RefreshTokenDays` | 否 | refresh token 过期天数，默认 `30` |
-| `Auth__BootstrapSuperAdmin__Username` | 首次部署必须 | 数据库中不存在 `SuperAdmin` 时创建初始管理员 |
+| `Auth__BootstrapSuperAdmin__Username` | 首次部署必须 | 用户表为空时创建初始管理员 |
 | `Auth__BootstrapSuperAdmin__Password` | 首次部署必须 | 初始管理员密码 |
 | `Auth__ApiKey__Enabled` | 否 | 是否启用 API key |
 | `Auth__ApiKey__Keys__0` | 启用 API key 时建议配置 | MCP 和机器调用使用 |
 | `Storage__Provider` | 是 | 当前运行时存储类型，例如 `local`、`s3`、`github-repo` |
 | `Storage__PublicBaseUrl` | 是 | 公开内容地址前缀，公开站和公开内容跳转会用到 |
 | `FRONTEND_VITE_API_BASE_URL` | 分域部署时必须 | 前端请求后端 API 的基础地址 |
-| `FRONTEND_VITE_ALLOWED_HOSTS` | 域名访问 `vite preview` 时建议配置 | 允许访问前端 preview 的 Host |
 
 说明：
 
 - `compose.yaml` 已经通过 `.env` 把这些变量传进容器
 - `Auth__BootstrapSuperAdmin__*` 不是“每个用户都要配一次”，而是“第一次把系统部署起来时需要配一次”
-- 如果数据库里已经有 `SuperAdmin`，后续重启不会重复创建
+- 如果用户表中已有任何用户，后续重启不会再创建初始管理员
 
 ## 6. 三种常见部署拓扑
 
@@ -213,7 +212,6 @@ Storage__PublicBaseUrl=http://localhost:5121/content
 ```env
 FRONTEND_VITE_API_BASE_URL=https://api.nekohub.example.com
 Storage__PublicBaseUrl=https://api.nekohub.example.com/content
-FRONTEND_VITE_ALLOWED_HOSTS=nekohub.example.com
 ```
 
 适合：
@@ -237,35 +235,23 @@ Storage__PublicBaseUrl=https://nekohub.example.com/content
 
 前端会走同源请求。
 
-## 7. 为什么会出现 “此主机不被允许”
+## 7. 前端静态托管与同源地址
 
-常见报错示例：
+当前前端容器使用 Nginx，监听 4173；Compose 将其映射到宿主机 5173。`vite preview` 的 Host 允许列表不控制此容器。
 
-```text
-请求被阻止。此主机 (“nekohub.fengying.xin”) 不被允许。
-```
+同域反向代理需将 `/api`、`/content` 和 `/mcp` 转发到 API，其他路径交给前端。Compose 默认将空的前端构建地址回退到 localhost；同源部署可把 `FRONTEND_VITE_API_BASE_URL` 设为 `/`，前端会规范化为同源请求。
 
-这不是后端鉴权报错，而是前端容器里 `vite preview` 的 Host 检查。
+浏览器保存的 API 地址用于管理台与公开画廊。切换后端会清除旧会话并取消旧请求，需要重新登录；旧版没有后端绑定信息的本地会话也需要重新登录一次。
 
-当前仓库已经支持通过 `FRONTEND_VITE_ALLOWED_HOSTS` 控制：
+## 7.1 私有 S3 / MinIO
 
-- 最省事：
+MinIO 示例桶默认禁止匿名读取。公开和私有资产都存入私有桶，由 NekoHub 检查可见性后提供 `/content` 或受保护内容接口。
 
-```env
-FRONTEND_VITE_ALLOWED_HOSTS=true
-```
+S3 示例 API 的公开内容地址通过 `S3_STORAGE_PUBLIC_BASE_URL` 配置，默认 `http://localhost:5122/content`；外网部署时替换为该 API 的实际 HTTPS 地址。不要将此地址指向匿名桶直链。
 
-- 更严格：
+已有部署如果曾使用全桶匿名策略，更新配置文件不会立即更改现有桶。应在对应测试或部署环境重新运行 `minio-init`，确认桶策略变成私有；自管 S3 则按对应服务配置私有桶，并检查已有 profile/资产公开 URL 是否需要切换到应用代理。单纯修改数据库的 `isPublic` 无法撤销外部桶的公开权限。
 
-```env
-FRONTEND_VITE_ALLOWED_HOSTS=nekohub.fengying.xin
-```
-
-改完后重建前端容器：
-
-```bash
-docker compose up -d --build nekohub-web
-```
+升级包含新增 `AssetProcessingJobs` 表的 EF migration；应用启动会执行迁移。部署前备份数据库、对象文件与 Data Protection keys。任务和待删文件清单的行为见 [处理与恢复说明](./PROCESSING.md)。
 
 ## 8. 本地源码运行
 
@@ -281,7 +267,7 @@ dotnet run --project src/NekoHub.Api/NekoHub.Api.csproj
 
 ```bash
 cd web/nekohub-web
-npm install
+npm ci
 npm run dev
 ```
 
@@ -300,7 +286,6 @@ npm run dev
 - 如果还需要脚本 / MCP，单独设置强随机 `Auth__ApiKey__Keys__0`
 - 对前端、API、`/content` 全部接上 HTTPS
 - 分域部署时同时更新 `FRONTEND_VITE_API_BASE_URL` 和 `Storage__PublicBaseUrl`
-- 如果是域名访问前端 preview，确认 `FRONTEND_VITE_ALLOWED_HOSTS`
 - 如果要启用自动运行 workflow，先完成 `/workflows` 配置；若 workflow 包含 `ai-caption`，还需要提前配置 active AI provider
 
 ## 10. 关键结论

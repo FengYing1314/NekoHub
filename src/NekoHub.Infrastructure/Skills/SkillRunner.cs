@@ -1,6 +1,8 @@
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NekoHub.Application.Abstractions.Persistence;
+using NekoHub.Application.Abstractions.Processing;
 using NekoHub.Application.Abstractions.Skills;
 using NekoHub.Application.Common.Diagnostics;
 using NekoHub.Domain.Skills;
@@ -8,20 +10,18 @@ using NekoHub.Domain.Skills;
 namespace NekoHub.Infrastructure.Skills;
 
 public sealed class SkillRunner(
-    IEnumerable<ISkillStepExecutor> stepExecutors,
-    IAssetSkillExecutionRepository skillExecutionRepository,
+    IServiceScopeFactory serviceScopeFactory,
+    IAssetMutationLock assetMutationLock,
     ILogger<SkillRunner> logger) : ISkillRunner
 {
     private const int MaxStepErrorMessageLength = 2048;
-
-    private readonly IReadOnlyDictionary<string, ISkillStepExecutor> _stepExecutors = stepExecutors
-        .ToDictionary(static step => step.StepName, StringComparer.Ordinal);
 
     public async Task<SkillRunResult> RunAsync(
         SkillDefinition definition,
         SkillExecutionContext context,
         CancellationToken cancellationToken = default)
     {
+        await using var mutationLock = await assetMutationLock.AcquireAsync(context.Asset.AssetId, cancellationToken);
         var executionId = Guid.CreateVersion7();
         var runStartedAtUtc = DateTimeOffset.UtcNow;
         var stepResults = new List<SkillStepRunResult>(definition.Steps.Count);
@@ -29,8 +29,13 @@ public sealed class SkillRunner(
 
         foreach (var step in definition.Steps)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var stepStartedAtUtc = DateTimeOffset.UtcNow;
-            if (!_stepExecutors.TryGetValue(step.Name, out var executor))
+            // 步骤拥有独立工作单元，失败后丢弃其跟踪状态，不污染后续步骤或执行日志。
+            await using var stepScope = serviceScopeFactory.CreateAsyncScope();
+            var executor = stepScope.ServiceProvider.GetServices<ISkillStepExecutor>()
+                .SingleOrDefault(candidate => string.Equals(candidate.StepName, step.Name, StringComparison.Ordinal));
+            if (executor is null)
             {
                 logger.LogWarning(
                     "Skill step is not registered. Skill={SkillName}, Step={StepName}, AssetId={AssetId}",
@@ -67,6 +72,10 @@ public sealed class SkillRunner(
                     errorMessage: null,
                     startedAtUtc: stepStartedAtUtc,
                     completedAtUtc: stepCompletedAtUtc));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception exception)
             {
@@ -108,6 +117,8 @@ public sealed class SkillRunner(
             succeeded: succeeded,
             parametersJson: SerializeParameters(context.Parameters));
 
+        await using var recordScope = serviceScopeFactory.CreateAsyncScope();
+        var skillExecutionRepository = recordScope.ServiceProvider.GetRequiredService<IAssetSkillExecutionRepository>();
         await skillExecutionRepository.AddExecutionAsync(execution, cancellationToken);
         await skillExecutionRepository.AddStepResultsAsync(stepExecutionRecords, cancellationToken);
         await skillExecutionRepository.SaveChangesAsync(cancellationToken);

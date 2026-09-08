@@ -88,7 +88,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IStorageProviderProfileRuntimeFactory, StorageProviderProfileRuntimeFactory>();
         services.AddSingleton<IAssetStorageResolver, AssetStorageResolver>();
         services.AddSingleton<IAssetMetadataExtractor, BasicAssetMetadataExtractor>();
-        services.AddSingleton<IAssetProcessingQueue, AssetProcessingQueue>();
+        services.AddScoped<AssetProcessingQueue>();
+        services.AddScoped<IAssetMutationLock, PostgresAssetMutationLock>();
+        services.AddScoped<IAssetProcessingQueue>(provider => provider.GetRequiredService<AssetProcessingQueue>());
+        services.AddScoped<IAssetFileCleanupQueue>(provider => provider.GetRequiredService<AssetProcessingQueue>());
+        services.AddScoped<IAssetProcessingJobService>(provider => provider.GetRequiredService<AssetProcessingQueue>());
         services.AddHostedService<QueuedAssetProcessingWorker>();
         services.AddScoped<IAssetProcessingDispatcher, AssetProcessingDispatcher>();
         services.AddSingleton<IAssetSkillDefinitionProvider, DefaultAssetSkillDefinitionProvider>();

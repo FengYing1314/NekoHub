@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia';
+import { useAuthStore } from './auth.store';
+import { getApiBackendIdentity } from '../config/api-backend';
 import { readFromLocalStorage, writeToLocalStorage } from '../utils/local-storage';
 import { fetchSystemBootstrap } from '../api/system/system.api';
 import { runtimeConfig } from '../config/runtime';
@@ -43,7 +45,7 @@ function normalizeBaseUrl(apiBaseUrl: string): string {
     return DEFAULT_API_BASE_URL;
   }
 
-  return trimmed.replace(/\/+$/, '');
+  return getApiBackendIdentity(trimmed);
 }
 async function inspectSystemBootstrap(apiBaseUrl: string): Promise<SystemBootstrapResponse | null> {
   try {
@@ -106,7 +108,12 @@ export const useAppConfigStore = defineStore('appConfig', {
     },
     async setConfig(payload: AppConfigPayload) {
       const apiBaseUrl = normalizeBaseUrl(payload.apiBaseUrl);
+      const nextBackend = getApiBackendIdentity(apiBaseUrl);
       const bootstrap = await fetchSystemBootstrap(apiBaseUrl);
+
+      if (nextBackend !== getApiBackendIdentity(this.apiBaseUrl)) {
+        useAuthStore().clearSession();
+      }
 
       this.apiBaseUrl = apiBaseUrl;
       this.bootstrapAvailable = true;

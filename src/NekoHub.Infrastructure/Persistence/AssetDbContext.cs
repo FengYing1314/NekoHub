@@ -12,6 +12,7 @@ public sealed class AssetDbContext(DbContextOptions<AssetDbContext> options) : D
 {
     public DbSet<AiProviderProfile> AiProviderProfiles => Set<AiProviderProfile>();
     public DbSet<Asset> Assets => Set<Asset>();
+    public DbSet<AssetProcessingJob> AssetProcessingJobs => Set<AssetProcessingJob>();
     public DbSet<AssetDerivative> AssetDerivatives => Set<AssetDerivative>();
     public DbSet<AssetStructuredResult> AssetStructuredResults => Set<AssetStructuredResult>();
     public DbSet<StorageProviderProfile> StorageProviderProfiles => Set<StorageProviderProfile>();

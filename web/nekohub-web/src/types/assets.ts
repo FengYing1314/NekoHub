@@ -255,3 +255,13 @@ export interface ParsedStructuredResult {
   rawPayloadJson: string;
   parsedPayload: unknown | null;
 }
+
+export interface AssetProcessingJobResponse {
+  id: string;
+  assetId: string;
+  status: 'pending' | 'running' | 'succeeded' | 'failed';
+  attempts: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  errorMessage: string | null;
+}

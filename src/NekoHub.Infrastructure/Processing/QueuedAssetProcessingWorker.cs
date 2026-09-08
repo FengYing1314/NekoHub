@@ -1,24 +1,28 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NekoHub.Application.Abstractions.Processing;
 
 namespace NekoHub.Infrastructure.Processing;
 
 public sealed class QueuedAssetProcessingWorker(
-    IAssetProcessingQueue assetProcessingQueue,
     IServiceScopeFactory serviceScopeFactory,
     ILogger<QueuedAssetProcessingWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var context in assetProcessingQueue.DequeueAllAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 using var scope = serviceScopeFactory.CreateScope();
-                var dispatcher = scope.ServiceProvider.GetRequiredService<IAssetProcessingDispatcher>();
-                await dispatcher.DispatchAsync(context, stoppingToken);
+                var queue = scope.ServiceProvider.GetRequiredService<AssetProcessingQueue>();
+                var job = await queue.ClaimAsync(null, stoppingToken);
+                if (job is null)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                    continue;
+                }
+                await queue.RunAsync(job, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -26,10 +30,9 @@ public sealed class QueuedAssetProcessingWorker(
             }
             catch (Exception exception)
             {
-                logger.LogError(
-                    exception,
-                    "Queued asset processing failed. AssetId={AssetId}",
-                    context.Asset.AssetId);
+                logger.LogError(exception, "Could not process persisted asset jobs.");
+                try { await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken); }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             }
         }
     }

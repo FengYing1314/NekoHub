@@ -110,6 +110,13 @@ public sealed class StorageProviderProfileManagementService(
         var validator = ResolveValidator(profile.ProviderType);
         var validated = validator.Validate(configurationJson, secretConfigurationJson);
 
+        if (StorageLocationChanged(profile.ProviderType, profile.ConfigurationJson, validated.ConfigurationJson)
+            && await assetRepository.AnyByStorageProviderProfileIdAsync(profile.Id, cancellationToken))
+        {
+            throw new ConflictException("storage_provider_profile_location_in_use",
+                "This storage location is referenced by assets or pending cleanup. Create a new profile to use a different location.");
+        }
+
         profile.Rename(name, displayName);
         profile.SetEnabled(isEnabled);
         profile.UpdateConfiguration(validated.ConfigurationJson, validated.SecretConfigurationJson);
@@ -198,6 +205,29 @@ public sealed class StorageProviderProfileManagementService(
         {
             defaultProfile.SetDefault(false);
         }
+    }
+
+    private static bool StorageLocationChanged(string providerType, string before, string after)
+    {
+        string[] identityFields = providerType switch
+        {
+            StorageProviderTypes.Local => ["rootPath"],
+            StorageProviderTypes.S3Compatible => ["providerName", "endpoint", "bucket", "region", "forcePathStyle"],
+            StorageProviderTypes.GitHubRepo => ["owner", "repo", "ref", "basePath", "apiBaseUrl"],
+            StorageProviderTypes.GitHubReleases => ["owner", "repo", "releaseTagMode", "fixedTag", "assetPathPrefix"],
+            _ => []
+        };
+        using var oldConfiguration = JsonDocument.Parse(before);
+        using var newConfiguration = JsonDocument.Parse(after);
+        return identityFields.Any(field => !string.Equals(
+            ReadIdentity(oldConfiguration.RootElement, field), ReadIdentity(newConfiguration.RootElement, field), StringComparison.Ordinal));
+    }
+
+    private static string? ReadIdentity(JsonElement configuration, string field)
+    {
+        return configuration.TryGetProperty(field, out var value) && value.ValueKind != JsonValueKind.Null
+            ? value.ToString()
+            : null;
     }
 
     private async Task EnsureUniqueNameAsync(string name, Guid? excludeProfileId, CancellationToken cancellationToken)

@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
+import { useAppConfigStore } from './app-config';
+import { getApiBackendIdentity } from '../config/api-backend';
 import type {
   AuthTokenResponse,
   AuthTokens,
@@ -19,12 +21,15 @@ import {
 const AUTH_STORAGE_KEY = 'nekohub.auth-session';
 
 interface PersistedAuthState {
+  backendUrl: string;
   accessToken: string;
   refreshToken: string;
   user: AuthenticatedUser | null;
 }
 
 interface AuthState {
+  backendUrl: string;
+  sessionVersion: number;
   accessToken: string;
   refreshToken: string;
   user: AuthenticatedUser | null;
@@ -90,13 +95,16 @@ function shouldClearSessionForError(error: unknown): boolean {
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
+    backendUrl: getApiBackendIdentity(useAppConfigStore().apiBaseUrl),
+    sessionVersion: 0,
     accessToken: '',
     refreshToken: '',
     user: null,
     initialized: false,
   }),
   getters: {
-    isAuthenticated: (state) => state.accessToken.length > 0 && state.refreshToken.length > 0,
+    isAuthenticated: (state) => state.accessToken.length > 0 && state.refreshToken.length > 0
+      && state.backendUrl === getApiBackendIdentity(useAppConfigStore().apiBaseUrl),
     username: (state) => state.user?.username ?? '',
     role: (state) => normalizeRole(state.user?.role ?? 'user'),
     permissions: (state) => state.user?.permissions ?? [],
@@ -110,6 +118,14 @@ export const useAuthStore = defineStore('auth', {
         return;
       }
 
+      if (persisted.backendUrl !== getApiBackendIdentity(useAppConfigStore().apiBaseUrl)) {
+        // 旧版未绑定服务的快照需要重新登录，不能推测令牌归属。
+        this.clearSession();
+        this.initialized = true;
+        return;
+      }
+
+      this.backendUrl = persisted.backendUrl;
       this.accessToken = persisted.accessToken?.trim() ?? '';
       this.refreshToken = persisted.refreshToken?.trim() ?? '';
       this.user = normalizeUser(persisted.user);
@@ -122,6 +138,7 @@ export const useAuthStore = defineStore('auth', {
       }
 
       writePersistedState({
+        backendUrl: this.backendUrl,
         accessToken: this.accessToken,
         refreshToken: this.refreshToken,
         user: this.user,
@@ -133,12 +150,14 @@ export const useAuthStore = defineStore('auth', {
         refreshToken: payload.refreshToken?.trim() ?? '',
       };
 
+      this.backendUrl = getApiBackendIdentity(useAppConfigStore().apiBaseUrl);
       this.accessToken = tokens.accessToken;
       this.refreshToken = tokens.refreshToken;
       this.user = normalizeUser(payload.user);
       this.persist();
     },
     clearSession() {
+      this.sessionVersion += 1;
       this.accessToken = '';
       this.refreshToken = '';
       this.user = null;
@@ -163,19 +182,32 @@ export const useAuthStore = defineStore('auth', {
       return permissions.some((permission) => this.hasPermission(permission));
     },
     async login(request: LoginRequest) {
+      this.clearSession();
+      const version = this.sessionVersion;
+      const backend = getApiBackendIdentity(useAppConfigStore().apiBaseUrl);
       const response = await loginApi(request);
+      if (version !== this.sessionVersion || backend !== getApiBackendIdentity(useAppConfigStore().apiBaseUrl)) {
+        throw new axios.CanceledError('登录期间会话或后端已改变');
+      }
       this.applySession(response);
       if (!this.user) {
         await this.fetchCurrentUser();
       }
     },
     async refreshSession(): Promise<string | null> {
-      if (!this.refreshToken) {
+      if (!this.isAuthenticated) {
         return null;
       }
 
+      const version = this.sessionVersion;
+      const backend = this.backendUrl;
+      const isCurrent = () => version === this.sessionVersion
+        && backend === getApiBackendIdentity(useAppConfigStore().apiBaseUrl);
       try {
         const response = await refreshTokenApi({ refreshToken: this.refreshToken });
+        if (!isCurrent()) {
+          return null;
+        }
         this.applySession(response);
         if (!this.user) {
           await this.fetchCurrentUser();
@@ -184,7 +216,7 @@ export const useAuthStore = defineStore('auth', {
         return this.accessToken;
       } catch (error) {
         // refresh 被服务端明确拒绝时，说明本地整套会话已经不可恢复，直接清空。
-        if (shouldClearSessionForError(error)) {
+        if (isCurrent() && shouldClearSessionForError(error)) {
           this.clearSession();
         }
 
@@ -196,7 +228,12 @@ export const useAuthStore = defineStore('auth', {
         return null;
       }
 
+      const version = this.sessionVersion;
+      const backend = this.backendUrl;
       const user = await getCurrentUser();
+      if (version !== this.sessionVersion || backend !== getApiBackendIdentity(useAppConfigStore().apiBaseUrl)) {
+        throw new axios.CanceledError('用户请求所属会话已结束');
+      }
       this.user = normalizeUser(user);
       this.persist();
       return this.user;
@@ -237,15 +274,17 @@ export const useAuthStore = defineStore('auth', {
     },
     async logout() {
       const refreshToken = this.refreshToken;
-      if (refreshToken && this.accessToken) {
+      const accessToken = this.accessToken;
+      const apiBaseUrl = this.backendUrl;
+      // 先终止本地请求和刷新，再使用旧会话的固定地址撤销服务端令牌。
+      this.clearSession();
+      if (refreshToken && accessToken) {
         try {
-          await logoutApi({ refreshToken });
+          await logoutApi({ refreshToken }, { accessToken, apiBaseUrl });
         } catch {
-          // 登出接口失败不阻塞本地退出，避免服务端瞬时异常导致用户卡在伪登录状态。
+          // 服务端暂时不可用时，本地退出仍然生效。
         }
       }
-
-      this.clearSession();
     },
   },
 });

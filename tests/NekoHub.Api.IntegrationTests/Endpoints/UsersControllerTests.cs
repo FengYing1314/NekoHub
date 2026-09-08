@@ -131,14 +131,123 @@ public class UsersControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Update_When_Admin_Promotes_User_Should_Return_Forbidden_Without_Changing_User()
+    {
+        var admin = await CreateUserAsync("restricted-admin", "admin-pass-123", UserRole.Admin,
+            permissions: ["users.update"]);
+        var target = await CreateUserAsync("promotion-target", "user-pass-123", UserRole.User);
+        using var adminClient = await LoginAsUserAsync(admin.Username, "admin-pass-123");
+
+        var response = await adminClient.PatchAsJsonAsync($"/api/v1/users/{target.Id}", new
+        {
+            role = "admin",
+            username = UniqueName("unauthorized-rename")
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var error = await GetErrorAsync(response);
+        error!.Code.Should().Be("user_role_change_forbidden");
+        var detail = await GetResponseDataAsync<UserDetailResponse>(await Client.GetAsync($"/api/v1/users/{target.Id}"));
+        detail!.Role.Should().Be(UserRole.User);
+        detail.Username.Should().Be(target.Username);
+        detail.Permissions.Should().Equal("assets.read");
+    }
+
+    [Fact]
+    public async Task Demoted_Admin_Should_Not_Keep_Management_Identity_From_Existing_AccessToken()
+    {
+        var admin = await CreateUserAsync("demotion-admin", "admin-pass-123", UserRole.Admin);
+        var target = await CreateUserAsync("demotion-target", "user-pass-123", UserRole.User);
+        using var adminClient = await LoginAsUserAsync(admin.Username, "admin-pass-123");
+        (await Client.PatchAsJsonAsync($"/api/v1/users/{admin.Id}", new { role = "user" }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Client.PatchAsJsonAsync($"/api/v1/users/{admin.Id}/permissions",
+            new UpdateUserPermissionsRequest(["users.read"]))).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 保留读取权限以单独验证角色边界，防止测试仅因缺少权限而通过。
+        (await adminClient.GetAsync($"/api/v1/users/{target.Id}")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await GetCurrentUserAsync(adminClient)).Role.Should().Be(UserRole.User);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Update_Status_Without_Disable_Permission_Should_Return_Forbidden(bool initiallyActive)
+    {
+        var admin = await CreateUserAsync("status-admin", "admin-pass-123", UserRole.Admin,
+            permissions: ["users.update"]);
+        var target = await CreateUserAsync("status-target", "user-pass-123", UserRole.User, initiallyActive);
+        using var adminClient = await LoginAsUserAsync(admin.Username, "admin-pass-123");
+
+        var response = await adminClient.PatchAsJsonAsync($"/api/v1/users/{target.Id}", new
+        {
+            isActive = !initiallyActive,
+            username = UniqueName("unauthorized-rename")
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var detail = await GetResponseDataAsync<UserDetailResponse>(await Client.GetAsync($"/api/v1/users/{target.Id}"));
+        detail!.IsActive.Should().Be(initiallyActive);
+        detail.Username.Should().Be(target.Username);
+    }
+
+    [Fact]
+    public async Task Update_Status_With_Disable_Permission_Should_Apply()
+    {
+        var admin = await CreateUserAsync("status-admin", "admin-pass-123", UserRole.Admin,
+            permissions: ["users.update", "users.disable"]);
+        var target = await CreateUserAsync("status-target", "user-pass-123", UserRole.User);
+        using var adminClient = await LoginAsUserAsync(admin.Username, "admin-pass-123");
+
+        var response = await adminClient.PatchAsJsonAsync($"/api/v1/users/{target.Id}", new { isActive = false });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var updated = await GetResponseDataAsync<UserDetailResponse>(response);
+        updated!.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Update_When_Disabling_SuperAdmin_Should_Return_Forbidden()
+    {
+        var superAdmin = await GetCurrentUserAsync(Client);
+
+        var response = await Client.PatchAsJsonAsync($"/api/v1/users/{superAdmin.Id}", new { isActive = false });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var error = await GetErrorAsync(response);
+        error!.Code.Should().Be("user_super_admin_disable_forbidden");
+        (await GetCurrentUserAsync(Client)).IsActive.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task ResetPassword_When_SuperAdmin_Changes_UserPassword_Should_Switch_Valid_Credentials()
     {
         var managedUser = await CreateUserAsync("password-target", "old-password-123", UserRole.User);
+        using var existingClient = CreateAnonymousClient();
+        var initialSession = await GetResponseDataAsync<AuthTokenResponse>(await existingClient.PostAsJsonAsync(
+            "/api/v1/auth/login", new LoginRequest(managedUser.Username, "old-password-123")));
+        var rotatedSession = await GetResponseDataAsync<AuthTokenResponse>(await existingClient.PostAsJsonAsync(
+            "/api/v1/auth/refresh", new RefreshTokenRequest(initialSession!.RefreshToken)));
+        var otherSession = await GetResponseDataAsync<AuthTokenResponse>(await existingClient.PostAsJsonAsync(
+            "/api/v1/auth/login", new LoginRequest(managedUser.Username, "old-password-123")));
 
         var resetResponse = await Client.PostAsJsonAsync(
             $"/api/v1/users/{managedUser.Id}/reset-password",
             new ResetUserPasswordRequest("new-password-123"));
         resetResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // 重置必须撤销全部设备与轮换前的 access token，而不只是阻止旧密码重新登录。
+        foreach (var session in new[] { initialSession, rotatedSession, otherSession })
+        {
+            existingClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session!.AccessToken);
+            (await existingClient.GetAsync("/api/v1/auth/me")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        }
+
+        foreach (var session in new[] { rotatedSession, otherSession })
+        {
+            (await existingClient.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshTokenRequest(session!.RefreshToken)))
+                .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        }
 
         using var oldPasswordClient = CreateAnonymousClient();
         var oldPasswordLogin = await oldPasswordClient.PostAsJsonAsync(

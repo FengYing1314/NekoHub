@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { authHttpClient, httpClient } from '../client/http-client';
 import { unwrapAxiosApiResponse } from '../client/response';
 import type {
@@ -38,8 +39,14 @@ export async function refreshToken(request: RefreshTokenRequest): Promise<AuthTo
   return normalizeAuthTokenResponse(payload);
 }
 
-export async function logout(request: LogoutRequest): Promise<void> {
-  await httpClient.post(`${AUTH_BASE_PATH}/logout`, request);
+export async function logout(
+  request: LogoutRequest,
+  session: { accessToken: string; apiBaseUrl: string },
+): Promise<void> {
+  await axios.post(`${session.apiBaseUrl}${AUTH_BASE_PATH}/logout`, request, {
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+    timeout: 15000,
+  });
 }
 
 export async function getCurrentUser(): Promise<AuthenticatedUser> {

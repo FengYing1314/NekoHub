@@ -35,6 +35,7 @@ const isAdminRoute = computed(() => (
   || route.path.startsWith('/providers')
   || route.path.startsWith('/ai-providers')
   || route.path.startsWith('/users')
+  || route.path.startsWith('/workflows')
 ));
 
 const shouldBlockForMissingConfig = computed(() => (

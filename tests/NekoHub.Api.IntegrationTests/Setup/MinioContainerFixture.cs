@@ -46,7 +46,6 @@ public sealed class MinioContainerFixture : IAsyncLifetime
         }
         catch (Exception exception)
         {
-            IsEnabled = false;
             IsAvailable = false;
             UnavailableReason = $"MinIO 启动失败: {exception.Message}";
             if (_container is not null)
@@ -88,26 +87,7 @@ public sealed class MinioContainerFixture : IAsyncLifetime
             BucketName = BucketName
         });
 
-        // 允许匿名读，便于 content redirect 的 URL 在测试中具备可访问语义。
-        var policy = $$"""
-                       {
-                         "Version": "2012-10-17",
-                         "Statement": [
-                           {
-                             "Effect": "Allow",
-                             "Principal": { "AWS": ["*"] },
-                             "Action": ["s3:GetObject"],
-                             "Resource": ["arn:aws:s3:::{{BucketName}}/*"]
-                           }
-                         ]
-                       }
-                       """;
-
-        await client.PutBucketPolicyAsync(new PutBucketPolicyRequest
-        {
-            BucketName = BucketName,
-            Policy = policy
-        });
+        // 桶保持私有，公开内容统一由应用检查可见性后提供。
     }
 
     private AmazonS3Client CreateS3Client()

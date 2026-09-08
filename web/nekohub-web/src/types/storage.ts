@@ -160,3 +160,11 @@ export interface GitHubRepoUpsertResponse {
   usesControlledRead: boolean;
   publicUrl: string | null;
 }
+
+export interface AssetStorageTargetResponse {
+  id: string | null;
+  name: string;
+  displayName: string | null;
+  providerType: string;
+  isDefault: boolean;
+}

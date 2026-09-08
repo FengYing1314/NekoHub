@@ -325,7 +325,8 @@ public sealed class AssetsController(
             ApiResponseFactory.Success(new RunAssetWorkflowResponse(
                 AssetId: queued.AssetId,
                 WorkflowId: queued.WorkflowId,
-                SkillIds: queued.SkillIds)));
+                SkillIds: queued.SkillIds,
+                JobId: queued.JobId)));
     }
 
     private static AssetResponse ToResponse(AssetDto dto)

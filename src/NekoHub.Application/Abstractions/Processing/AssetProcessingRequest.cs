@@ -6,4 +6,5 @@ public sealed record AssetProcessingRequest(
     AssetCreatedProcessingContext Asset,
     string TriggerSource,
     Guid? WorkflowProfileId = null,
-    IReadOnlyList<AssetProcessingSkillRequest>? Skills = null);
+    IReadOnlyList<AssetProcessingSkillRequest>? Skills = null,
+    Guid? JobId = null);

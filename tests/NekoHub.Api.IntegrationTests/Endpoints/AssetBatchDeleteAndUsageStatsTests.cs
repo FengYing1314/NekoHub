@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using FluentAssertions;
 using NekoHub.Api.Contracts.Responses;
 using NekoHub.Api.IntegrationTests.Setup;
+using NekoHub.Application.Abstractions.Processing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
@@ -52,6 +53,13 @@ public class AssetBatchDeleteAndUsageStatsTests : IntegrationTestBase, IClassFix
 
         var deleteResponse = await Client.DeleteAsync($"/api/v1/assets/{deletedAsset.Id}");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 统计预期包含上传后的自动处理与下面的手动执行，先等待自动任务完成。
+        await EventuallyAsync(async () =>
+        {
+            using var jobsResponse = await Client.GetAsync($"/api/v1/assets/{activeAsset.Id}/jobs");
+            return await GetResponseDataAsync<List<AssetProcessingJobDto>>(jobsResponse);
+        }, jobs => jobs?.Any(job => job.Status == "succeeded") == true);
 
         var runSkillResponse = await PostMcpAsync(new
         {

@@ -6,6 +6,7 @@ using NekoHub.Application.Abstractions.Processing;
 using NekoHub.Application.Abstractions.Storage;
 using NekoHub.Application.Assets.Services;
 using NekoHub.Domain.Assets;
+using NekoHub.Infrastructure.Persistence;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Processing;
@@ -13,6 +14,7 @@ using SixLabors.ImageSharp.Processing;
 namespace NekoHub.Infrastructure.Processing;
 
 public sealed class ThumbnailAssetPostProcessor(
+    AssetDbContext dbContext,
     IAssetRepository assetRepository,
     IAssetStorageTargetSelector assetStorageTargetSelector,
     IAssetDerivativeRepository assetDerivativeRepository,
@@ -96,31 +98,39 @@ public sealed class ThumbnailAssetPostProcessor(
             storageKey: stored.StorageKey,
             publicUrl: stored.PublicUrl);
 
-        await assetDerivativeRepository.AddAsync(thumbnail, cancellationToken);
         try
         {
+            await assetDerivativeRepository.AddAsync(thumbnail, cancellationToken);
             await assetDerivativeRepository.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception, "IX_AssetDerivatives_SourceAssetId_Kind"))
+        catch (Exception exception)
         {
+            dbContext.ChangeTracker.Clear();
             try
             {
                 await storageLease.Storage.DeleteAsync(
                     new DeleteStoredAssetRequest(stored.StorageKey),
-                    cancellationToken);
+                    CancellationToken.None);
             }
             catch (Exception cleanupException)
             {
                 logger.LogWarning(
                     cleanupException,
-                    "Failed to cleanup duplicate thumbnail after concurrent insert conflict. AssetId={AssetId}, StorageKey={StorageKey}",
+                    "Failed to cleanup thumbnail after persistence failure. AssetId={AssetId}, StorageKey={StorageKey}",
                     context.AssetId,
                     stored.StorageKey);
             }
 
-            logger.LogInformation(
-                "Thumbnail derivative already exists due to concurrent processing. AssetId={AssetId}",
-                context.AssetId);
+            if (exception is DbUpdateException updateException
+                && IsUniqueConstraintViolation(updateException, "IX_AssetDerivatives_SourceAssetId_Kind"))
+            {
+                logger.LogInformation(
+                    "Thumbnail derivative already exists due to concurrent processing. AssetId={AssetId}",
+                    context.AssetId);
+                return;
+            }
+
+            throw;
         }
     }
 

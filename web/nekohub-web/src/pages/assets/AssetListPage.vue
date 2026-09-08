@@ -640,6 +640,7 @@ async function fetchUsageStats(): Promise<void> {
 }
 
 async function fetchStorageOverview(): Promise<void> {
+  if (!can(PERMISSIONS.providersRead)) return;
   try {
     storageOverview.value = await getStorageProviderOverview();
   } catch {

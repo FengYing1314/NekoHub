@@ -29,12 +29,15 @@ import StructuredResultRenderer from '../../components/assets/structured-results
 import {
   deleteAsset,
   getAssetContentBlob,
+  getAssetDerivativeContentBlob,
   getAsset,
   patchAsset,
   runAssetWorkflow,
+  listAssetWorkflows,
+  getAssetJobs,
+  retryAssetJob,
 } from '../../api/assets/assets.api';
 import { extractApiErrorMessage } from '../../api/client/error';
-import { listWorkflowProfiles } from '../../api/system/workflows.api';
 import { getStorageProviderOverview } from '../../api/system/storage.api';
 import { useIsMobile } from '../../composables/useIsMobile';
 import { useAuthPermissions } from '../../composables/useAuthPermissions';
@@ -43,12 +46,13 @@ import type {
   AssetDerivativeSummaryResponse,
   AssetLatestExecutionStepSummaryResponse,
   AssetResponse,
+  AssetProcessingJobResponse,
   BasicCaptionStructuredResultPayload,
   PatchAssetInput,
 } from '../../types/assets';
 import { isAssetPending } from '../../types/assets';
 import type { StorageProviderOverviewResponse } from '../../types/storage';
-import type { WorkflowProfileResponse } from '../../types/workflows';
+import type { AssetWorkflowOptionResponse } from '../../types/workflows';
 import { formatDateTime, formatFileSize } from '../../utils/format';
 
 interface EditableAssetMetadata {
@@ -73,6 +77,7 @@ const deleting = ref(false);
 const savingMetadata = ref(false);
 const updatingVisibility = ref(false);
 const openingContent = ref(false);
+const downloadingOriginalKind = ref<string | null>(null);
 const editingMetadata = ref(false);
 const loadErrorMessage = ref('');
 const asset = ref<AssetResponse | null>(null);
@@ -80,12 +85,15 @@ const backgroundRefreshing = ref(false);
 const initialMetadata = ref<EditableAssetMetadata | null>(null);
 const deleteCommitMessage = ref('');
 const storageOverview = ref<StorageProviderOverviewResponse | null>(null);
-const availableWorkflows = ref<WorkflowProfileResponse[]>([]);
+const availableWorkflows = ref<AssetWorkflowOptionResponse[]>([]);
 const workflowsLoading = ref(false);
 const workflowsLoadErrorMessage = ref('');
 const selectedWorkflowId = ref<string | null>(null);
 const runningWorkflowId = ref<string | null>(null);
 const forcedRefreshCycles = ref(0);
+const jobs = ref<AssetProcessingJobResponse[]>([]);
+const jobsError = ref('');
+const retryingJobId = ref<string | null>(null);
 
 const metadataForm = reactive({
   originalFileName: '',
@@ -166,7 +174,8 @@ const isWorkflowActionBlocked = computed(() => (
   || updatingVisibility.value
   || !canUpdateAsset.value
 ));
-const shouldPollAsset = computed(() => isAssetProcessing.value || forcedRefreshCycles.value > 0);
+const shouldPollAsset = computed(() => isAssetProcessing.value || forcedRefreshCycles.value > 0
+  || jobs.value.some((job) => job.status === 'pending' || job.status === 'running'));
 
 let assetPollingTimerId: number | null = null;
 const isGitHubAsset = computed(() => {
@@ -327,7 +336,18 @@ async function loadAsset(options: { silent?: boolean } = {}): Promise<void> {
   }
 
   try {
-    asset.value = await getAsset(assetId.value);
+    const requestedId = assetId.value;
+    const loadedAsset = await getAsset(requestedId);
+    if (requestedId !== assetId.value) return;
+    asset.value = loadedAsset;
+    try {
+      const loadedJobs = await getAssetJobs(requestedId);
+      if (requestedId !== assetId.value) return;
+      jobs.value = loadedJobs;
+      jobsError.value = '';
+    } catch (error) {
+      if (requestedId === assetId.value) jobsError.value = extractApiErrorMessage(error);
+    }
     loadErrorMessage.value = '';
   } catch (error) {
     if (!silent) {
@@ -345,6 +365,7 @@ async function loadAsset(options: { silent?: boolean } = {}): Promise<void> {
 }
 
 async function loadStorageOverview(): Promise<void> {
+  if (!can(PERMISSIONS.providersRead)) return;
   try {
     storageOverview.value = await getStorageProviderOverview();
   } catch {
@@ -353,11 +374,12 @@ async function loadStorageOverview(): Promise<void> {
 }
 
 async function loadWorkflows(): Promise<void> {
+  if (!canUpdateAsset.value) return;
   workflowsLoading.value = true;
   workflowsLoadErrorMessage.value = '';
 
   try {
-    const workflows = await listWorkflowProfiles();
+    const workflows = await listAssetWorkflows();
     availableWorkflows.value = workflows;
 
     // 默认优先选自动运行 workflow；没有时再回退到第一个，减少详情页手动触发时的额外选择成本。
@@ -480,10 +502,7 @@ async function handleVisibilityToggle(): Promise<void> {
 }
 
 function openExternal(url: string): void {
-  const popup = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!popup) {
-    window.location.assign(url);
-  }
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 async function handleOpenContent(): Promise<void> {
@@ -500,18 +519,50 @@ async function handleOpenContent(): Promise<void> {
 
   try {
     const blob = await getAssetContentBlob(asset.value.id);
-    const objectUrl = URL.createObjectURL(blob);
-    const popup = window.open(objectUrl, '_blank', 'noopener,noreferrer');
-    if (!popup) {
-      message.warning(t('asset.detail.openContentBlocked'));
-    }
-
-    // 给新窗口留出读取时间后再回收 object URL，避免下载流刚创建就被提前释放。
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    downloadBlob(blob, asset.value?.originalFileName || 'asset');
   } catch (error) {
     message.error(`${t('asset.detail.openContentFailed')}: ${extractApiErrorMessage(error)}`);
   } finally {
     openingContent.value = false;
+  }
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = fileName;
+  link.click();
+  // 下载开始后再回收地址，避免流刚建立就被释放。
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
+async function downloadRetainedOriginal(derivative: AssetDerivativeSummaryResponse): Promise<void> {
+  if (!asset.value || downloadingOriginalKind.value) return;
+  downloadingOriginalKind.value = derivative.kind;
+  try {
+    const blob = await getAssetDerivativeContentBlob(asset.value.id, derivative.kind);
+    const extension = derivative.extension.replace(/^\./, '');
+    downloadBlob(blob, extension ? `${derivative.kind}.${extension}` : derivative.kind);
+  } catch (error) {
+    message.error(extractApiErrorMessage(error));
+  } finally {
+    downloadingOriginalKind.value = null;
+  }
+}
+
+async function handleRetryJob(jobId: string): Promise<void> {
+  if (!canUpdateAsset.value || retryingJobId.value) return;
+  retryingJobId.value = jobId;
+  try {
+    await retryAssetJob(assetId.value, jobId);
+    forcedRefreshCycles.value = FORCED_REFRESH_CYCLES_AFTER_TRIGGER;
+    await loadAsset({ silent: true });
+    message.success(t('asset.detail.jobs.retrySuccess'));
+  } catch (error) {
+    message.error(extractApiErrorMessage(error));
+  } finally {
+    retryingJobId.value = null;
   }
 }
 
@@ -606,6 +657,8 @@ watch(
     exitMetadataEdit();
     clearMetadataForm();
     deleteCommitMessage.value = '';
+    jobs.value = [];
+    jobsError.value = '';
     void loadAsset();
   },
   { immediate: true },
@@ -642,7 +695,7 @@ onBeforeUnmount(() => {
           <n-button @click="backToList">{{ t('asset.detail.backToList') }}</n-button>
           <n-button :loading="loading" @click="handleAssetRefresh">{{ t('common.refresh') }}</n-button>
           <n-button v-if="canOpenContent" type="primary" ghost :loading="openingContent" @click="handleOpenContent">
-            {{ t('asset.detail.openContent') }}
+            {{ asset?.isPublic && asset.publicUrl ? t('asset.detail.openContent') : t('asset.detail.downloadContent') }}
           </n-button>
         </n-space>
       </template>
@@ -848,9 +901,13 @@ onBeforeUnmount(() => {
                 <n-empty v-else :description="derivativePreviewUnavailableText" />
               </div>
 
-              <n-button v-if="item.publicUrl" size="small" quaternary type="primary" @click="openExternal(item.publicUrl)">
+              <n-button v-if="item.publicUrl && !item.kind.startsWith('original_')" size="small" quaternary type="primary" @click="openExternal(item.publicUrl)">
                 {{ t('asset.detail.openDerivative') }}
               </n-button>
+
+              <n-button v-if="item.kind.startsWith('original_')" size="small" type="primary" secondary
+                :loading="downloadingOriginalKind === item.kind" :disabled="downloadingOriginalKind !== null"
+                @click="downloadRetainedOriginal(item)">{{ t('asset.detail.downloadRetainedOriginal') }}</n-button>
 
               <div class="section-label">{{ t('asset.detail.derivativeInfo') }}</div>
               <dl class="info-list">
@@ -872,7 +929,34 @@ onBeforeUnmount(() => {
         </div>
       </n-card>
 
-      <n-card :title="t('asset.detail.workflows.title')" class="section-card">
+      <n-card :title="t('asset.detail.jobs.title')" class="section-card">
+        <n-alert v-if="jobsError" type="warning">{{ jobsError }}</n-alert>
+        <n-empty v-else-if="jobs.length === 0" :description="t('asset.detail.jobs.empty')" />
+        <n-space v-else vertical>
+          <div v-for="job in jobs" :key="job.id" data-testid="asset-job">
+            <n-space align="center">
+              <n-tag :type="job.status === 'failed' ? 'error' : job.status === 'succeeded' ? 'success' : 'info'">
+                {{ t(`asset.detail.jobs.status.${job.status}`) }}
+              </n-tag>
+              <span>{{ formatDateTime(job.updatedAtUtc) }}</span>
+              <span>{{ t('asset.detail.jobs.attempts', { count: job.attempts }) }}</span>
+              <n-popconfirm v-if="job.status === 'failed' && canUpdateAsset"
+                :positive-text="t('common.retry')" :negative-text="t('common.cancel')"
+                @positive-click="handleRetryJob(job.id)">
+                <template #trigger>
+                  <n-button size="small" :loading="retryingJobId === job.id" :disabled="retryingJobId !== null">
+                    {{ t('common.retry') }}
+                  </n-button>
+                </template>
+                {{ t('asset.detail.jobs.retryConfirm') }}
+              </n-popconfirm>
+            </n-space>
+            <div v-if="job.errorMessage" class="metadata-edit-hint">{{ job.errorMessage }}</div>
+          </div>
+        </n-space>
+      </n-card>
+
+      <n-card v-if="canUpdateAsset" :title="t('asset.detail.workflows.title')" class="section-card">
         <template #header-extra>
           <n-space :size="8">
             <n-button text :loading="workflowsLoading" @click="loadWorkflows">

@@ -32,10 +32,7 @@ function backToGallery(): void {
 }
 
 function openPublicUrl(url: string): void {
-  const popup = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!popup) {
-    window.location.assign(url);
-  }
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function canPreviewDerivative(derivative: PublicAssetDerivativeSummaryResponse): boolean {

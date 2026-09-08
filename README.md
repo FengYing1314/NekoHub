@@ -24,7 +24,7 @@ NekoHub 是一个图片资产管理系统，仓库同时包含：
   - `/mcp` 仍是 `API key only`
 - 首次部署
   - 通过环境变量种子创建唯一 `SuperAdmin`
-  - 只在数据库里还没有 `SuperAdmin` 时执行一次
+  - 只在用户表为空时执行一次
 
 补充一点：
 
@@ -125,7 +125,7 @@ dotnet run --project src/NekoHub.Api/NekoHub.Api.csproj
 
 ```bash
 cd web/nekohub-web
-npm install
+npm ci
 npm run dev
 ```
 
@@ -152,7 +152,6 @@ npm run dev
 - `Auth__ApiKey__Enabled`
 - `Auth__ApiKey__Keys__0`
 - `FRONTEND_VITE_API_BASE_URL`
-- `FRONTEND_VITE_ALLOWED_HOSTS`
 
 ## 测试
 
@@ -170,6 +169,17 @@ npm run build
 - 后端集成测试默认通过 Testcontainers 启动 PostgreSQL，需要可用 Docker
 - 如需跳过自动数据库容器，可显式设置 `NEKOHUB_TEST_DATABASE_CONNECTIONSTRING`
 - S3 相关测试可通过 `NEKOHUB_RUN_S3_IT=true` 启用
+
+## 后台任务与资产恢复
+
+- 上传与后台处理任务在同一数据库提交中保存；工作流排队响应包含 `jobId`。
+- 资产详情显示后台任务状态。失败任务可在核对当前图片后重试，重试会重新执行整个流程。
+- 待执行任务会在重启后继续领取；执行中断的图片任务会标记失败，避免自动重复水印等非幂等处理。
+- 文件删除记录先持久化，随后立即尝试清理；暂时失败会由后台自动重试。
+- 格式转换保留的原图会登记为衍生物，可下载，并随资产删除。
+- 原图变更会使旧缩略图和 caption 失效，已有缩略图会重新生成。
+- 使用私有 S3 桶，公开文件统一通过 NekoHub `/content` 路由提供。具体配置与恢复边界见 [处理与恢复说明](./docs/PROCESSING.md)。
+- 发布镜像和前端之前必须通过 `.github/workflows/verify.yml` 的后端测试、私有 S3 集成测试与前端测试/构建。
 
 ## 已知边界
 

@@ -9,10 +9,12 @@ using NekoHub.Application.Abstractions.Persistence;
 using NekoHub.Application.Abstractions.Processing;
 using NekoHub.Application.Assets.Services;
 using NekoHub.Domain.Assets;
+using NekoHub.Infrastructure.Persistence;
 
 namespace NekoHub.Infrastructure.Processing;
 
 public sealed class BasicCaptionStructuredResultPostProcessor(
+    AssetDbContext dbContext,
     IAssetStructuredResultRepository structuredResultRepository,
     IAssetRepository assetRepository,
     IAssetDerivativeRepository assetDerivativeRepository,
@@ -86,6 +88,7 @@ public sealed class BasicCaptionStructuredResultPostProcessor(
         }
         catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception, "IX_AssetStructuredResults_SourceAssetId_Kind"))
         {
+            dbContext.ChangeTracker.Clear();
             logger.LogInformation(
                 "Structured result already exists due to concurrent processing. AssetId={AssetId}, Kind={Kind}",
                 context.AssetId,

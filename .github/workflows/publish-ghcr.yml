@@ -12,7 +12,13 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+    permissions:
+      contents: read
+
   build-and-publish:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read

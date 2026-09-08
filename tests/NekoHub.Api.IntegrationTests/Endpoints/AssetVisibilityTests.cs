@@ -108,8 +108,12 @@ public class AssetVisibilityTests : IntegrationTestBase
         privateAsset!.IsPublic.Should().BeFalse();
         privateAsset.PublicUrl.Should().BeNull();
 
-        var privateDetailResponse = await Client.GetAsync($"/api/v1/assets/{assetId}");
-        var privateDetail = await GetResponseDataAsync<AssetResponse>(privateDetailResponse);
+        // 上传只保证入队成功；等待衍生物生成后再验证私有 URL 的过滤。
+        var privateDetail = await EventuallyAsync(async () =>
+        {
+            using var response = await Client.GetAsync($"/api/v1/assets/{assetId}");
+            return await GetResponseDataAsync<AssetResponse>(response);
+        }, detail => detail?.Derivatives.Count > 0);
         privateDetail.Should().NotBeNull();
         privateDetail!.IsPublic.Should().BeFalse();
         privateDetail.PublicUrl.Should().BeNull();

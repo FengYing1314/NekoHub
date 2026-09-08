@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -27,6 +29,28 @@ public static class JwtBearerEventsConfigurator
                 if (user is null || !user.IsActive)
                 {
                     context.Fail("JWT token belongs to an inactive or missing user.");
+                    return;
+                }
+
+                var jwtId = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+                var refreshTokens = context.HttpContext.RequestServices.GetRequiredService<IRefreshTokenRepository>();
+                if (string.IsNullOrWhiteSpace(jwtId)
+                    || !await refreshTokens.IsSessionActiveAsync(user.Id, jwtId, context.HttpContext.RequestAborted))
+                {
+                    context.Fail("JWT session has been revoked.");
+                    return;
+                }
+
+                // 角色与用户名使用当前账户状态，避免角色调整后旧 JWT 继续携带过期的管理身份。
+                if (context.Principal?.Identity is ClaimsIdentity identity)
+                {
+                    foreach (var claim in identity.FindAll(ClaimTypes.Role).Concat(identity.FindAll(ClaimTypes.Name)).ToList())
+                    {
+                        identity.RemoveClaim(claim);
+                    }
+
+                    identity.AddClaim(new Claim(ClaimTypes.Role, user.Role.ToString()));
+                    identity.AddClaim(new Claim(ClaimTypes.Name, user.Username));
                 }
             },
             OnChallenge = async context =>

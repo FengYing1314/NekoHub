@@ -132,4 +132,47 @@ describe('http client refresh queue', () => {
     expect(logoutSpy).not.toHaveBeenCalled();
     expect(unauthorizedSpy).not.toHaveBeenCalled();
   });
+  it('cancels pending authenticated requests when the session ends', async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const { httpClient, setupHttpClientInterceptors } = await import('./http-client');
+    const store = useAuthStore(pinia);
+    store.applySession({ accessToken: 'a', refreshToken: 'r', user: {
+      id: 'u-1', username: 'alice', role: 'user', isActive: true, permissions: [],
+    } });
+    setupHttpClientInterceptors({ pinia });
+    let complete!: () => void;
+    const request = httpClient.get('/api/v1/assets', { adapter: async (config) => {
+      await new Promise<void>((resolve) => { complete = resolve; });
+      return { status: 200, statusText: 'OK', headers: {}, config, data: { data: [] } };
+    } });
+    store.clearSession();
+    complete();
+    await expect(request).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+  });
+
+  it('does not retry an old 401 using the newly selected backend', async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const { httpClient, setupHttpClientInterceptors } = await import('./http-client');
+    const { useAppConfigStore } = await import('../../stores/app-config');
+    const store = useAuthStore(pinia);
+    store.applySession({ accessToken: 'a', refreshToken: 'r', user: {
+      id: 'u-1', username: 'alice', role: 'user', isActive: true, permissions: [],
+    } });
+    const refresh = vi.spyOn(store, 'refreshSession');
+    setupHttpClientInterceptors({ pinia });
+    let complete!: () => void;
+    const request = httpClient.get('/api/v1/assets', { adapter: async (config) => {
+      await new Promise<void>((resolve) => { complete = resolve; });
+      throw new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined, {
+        status: 401, statusText: 'Unauthorized', headers: {}, config, data: {},
+      });
+    } });
+    useAppConfigStore(pinia).apiBaseUrl = 'https://new.example';
+    complete();
+    await expect(request).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
 });

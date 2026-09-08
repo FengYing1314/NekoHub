@@ -6,6 +6,7 @@ using FluentAssertions;
 using NekoHub.Api.Contracts.Responses;
 using NekoHub.Api.IntegrationTests.Endpoints;
 using NekoHub.Api.IntegrationTests.Setup;
+using NekoHub.Application.Abstractions.Processing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
@@ -17,6 +18,33 @@ public class WatermarkSkillTests : IntegrationTestBase
 {
     public WatermarkSkillTests(NekoHubApplicationFactory factory) : base(factory)
     {
+    }
+
+    [Fact]
+    public async Task Watermark_Should_Rebuild_Existing_Thumbnail_And_Remove_Old_Preview()
+    {
+        var assetId = await UploadTestPngAsync("thumbnail-watermark.png", CreatePngBytes(320, 180));
+        using var thumbnailResponse = await Client.PostAsJsonAsync(
+            $"/api/v1/assets/{assetId}/skills/thumbnail/run", new { });
+        thumbnailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var before = (await GetAssetAsync(assetId))!;
+        var oldThumbnail = before.Derivatives.Single(derivative => derivative.Kind == AssetDerivativeKinds.Thumbnail256);
+        var oldPath = new Uri(oldThumbnail.PublicUrl!).AbsolutePath;
+        var originalPreview = await Client.GetByteArrayAsync(oldPath);
+
+        using var watermarkResponse = await Client.PostAsJsonAsync(
+            $"/api/v1/assets/{assetId}/skills/watermark/run",
+            new { parameters = new { Text = "Updated preview", Opacity = 1, FontSize = 28, Position = "Center" } });
+        watermarkResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var run = await GetResponseDataAsync<RunAssetSkillResponse>(watermarkResponse);
+        run!.Succeeded.Should().BeTrue(string.Join("; ", run.Steps.Select(step => step.ErrorMessage)));
+
+        var after = (await GetAssetAsync(assetId))!;
+        var thumbnail = after.Derivatives.Single(derivative => derivative.Kind == AssetDerivativeKinds.Thumbnail256);
+        var updatedPreview = await Client.GetByteArrayAsync(new Uri(thumbnail.PublicUrl!).AbsolutePath);
+        updatedPreview.Should().NotEqual(originalPreview);
+        using var staleResponse = await Client.GetAsync(oldPath);
+        staleResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]

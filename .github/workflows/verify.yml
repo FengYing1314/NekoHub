@@ -1,0 +1,40 @@
+name: Verify
+
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run backend and private S3 integration tests
+        env:
+          NEKOHUB_RUN_S3_IT: 'true'
+        run: dotnet test tests/NekoHub.Api.IntegrationTests/NekoHub.Api.IntegrationTests.csproj --configuration Release
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web/nekohub-web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/nekohub-web/package-lock.json
+      - run: npm ci
+      - run: npm run test
+      - run: npm run build

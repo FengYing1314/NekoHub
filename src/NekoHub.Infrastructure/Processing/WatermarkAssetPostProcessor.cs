@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NekoHub.Application.Abstractions.Persistence;
+using NekoHub.Application.Abstractions.Processing;
 using NekoHub.Application.Abstractions.Storage;
 using NekoHub.Application.Assets.Services;
 using NekoHub.Application.Common.Exceptions;
@@ -21,6 +22,8 @@ public sealed class WatermarkAssetPostProcessor(
     AssetDbContext dbContext,
     IAssetRepository assetRepository,
     IAssetStorageTargetSelector assetStorageTargetSelector,
+    IAssetFileCleanupQueue assetFileCleanupQueue,
+    ThumbnailAssetPostProcessor thumbnailAssetPostProcessor,
     ILogger<WatermarkAssetPostProcessor> logger)
 {
     private static readonly string[] PreferredFontFamilies =
@@ -96,33 +99,68 @@ public sealed class WatermarkAssetPostProcessor(
         watermarkedContent.Position = 0;
 
         var checksumSha256 = await ComputeSha256Async(watermarkedContent, cancellationToken);
+        Domain.Assets.AssetDerivative? invalidatedThumbnail = null;
+        Guid? cleanupJobId = null;
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        await using (var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken))
         {
-            watermarkedContent.Position = 0;
-            var stored = await storageLease.Storage.OverwriteAsync(
-                watermarkedContent,
-                asset.StorageKey,
-                BuildOverwriteRequest(asset, watermarkedContent.Length),
-                cancellationToken);
+            try
+            {
+                watermarkedContent.Position = 0;
+                var stored = await storageLease.Storage.OverwriteAsync(
+                    watermarkedContent,
+                    asset.StorageKey,
+                    BuildOverwriteRequest(asset, watermarkedContent.Length),
+                    cancellationToken);
 
-            asset.UpdateStoredObjectMetadata(
-                size: watermarkedContent.Length,
-                checksumSha256: checksumSha256,
-                width: image.Width,
-                height: image.Height,
-                storedFileName: stored.StoredFileName,
-                publicUrl: stored.PublicUrl);
+                asset.UpdateStoredObjectMetadata(
+                    size: watermarkedContent.Length,
+                    checksumSha256: checksumSha256,
+                    width: image.Width,
+                    height: image.Height,
+                    storedFileName: stored.StoredFileName,
+                    publicUrl: stored.PublicUrl);
 
-            await assetRepository.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+                invalidatedThumbnail = await AssetDerivedContentInvalidation.StageAsync(dbContext, asset.Id, cancellationToken);
+                if (invalidatedThumbnail is not null)
+                {
+                    cleanupJobId = await assetFileCleanupQueue.EnqueueAsync(asset.Id, asset.StorageProviderProfileId,
+                        [new AssetFileCleanupTarget(invalidatedThumbnail.StorageProvider, invalidatedThumbnail.StorageKey)], cancellationToken);
+                }
+                else
+                {
+                    await assetRepository.SaveChangesAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                }
+                catch (Exception rollbackException)
+                {
+                    logger.LogWarning(rollbackException, "Failed to rollback asset processing transaction. AssetId={AssetId}", asset.Id);
+                }
+                finally
+                {
+                    dbContext.ChangeTracker.Clear();
+                }
+                await TryRestoreOriginalContentAsync(storageLease.Storage, asset, originalContent, CancellationToken.None);
+                throw;
+            }
         }
-        catch
+
+        if (cleanupJobId.HasValue)
         {
-            await transaction.RollbackAsync(cancellationToken);
-            await TryRestoreOriginalContentAsync(storageLease.Storage, asset, originalContent, cancellationToken);
-            throw;
+            await assetFileCleanupQueue.TryProcessAsync(cleanupJobId.Value, CancellationToken.None);
+        }
+
+        if (invalidatedThumbnail is not null)
+        {
+            await thumbnailAssetPostProcessor.ProcessAsync(context, cancellationToken);
         }
     }
 

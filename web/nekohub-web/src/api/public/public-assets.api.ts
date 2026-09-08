@@ -1,5 +1,6 @@
 import type { ApiResponse } from '../../types/api';
-import { runtimeConfig } from '../../config/runtime';
+import { useAppConfigStore } from '../../stores/app-config';
+import { getApiBackendIdentity } from '../../config/api-backend';
 import type {
   ListPublicAssetsInput,
   PublicAssetPagedResponse,
@@ -9,7 +10,7 @@ import type {
 const PUBLIC_ASSETS_BASE_PATH = '/api/v1/public/assets';
 
 function buildPublicApiUrl(path: string, query?: Record<string, string | number | undefined>): string {
-  const normalizedBaseUrl = runtimeConfig.apiBaseUrl.trim().replace(/\/+$/, '');
+  const normalizedBaseUrl = getApiBackendIdentity(useAppConfigStore().apiBaseUrl);
   const searchParams = new URLSearchParams();
 
   if (query) {
@@ -31,6 +32,7 @@ function buildPublicApiUrl(path: string, query?: Record<string, string | number 
 async function fetchPublicApi<T>(path: string, query?: Record<string, string | number | undefined>): Promise<T> {
   const response = await fetch(buildPublicApiUrl(path, query), {
     method: 'GET',
+    credentials: 'omit',
     headers: {
       Accept: 'application/json',
     },

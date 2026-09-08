@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import { createApp, watch } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import './style.css';
@@ -35,6 +35,12 @@ async function bootstrap(): Promise<void> {
         },
       });
     },
+  });
+
+  watch(() => authStore.isAuthenticated, (authenticated, previouslyAuthenticated) => {
+    if (!authenticated && previouslyAuthenticated && router.currentRoute.value.meta.requiresAuth) {
+      void router.replace({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } });
+    }
   });
 
   await authStore.bootstrapSession();

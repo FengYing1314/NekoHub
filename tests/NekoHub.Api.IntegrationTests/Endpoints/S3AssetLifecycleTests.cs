@@ -33,6 +33,27 @@ public class S3AssetLifecycleTests : IClassFixture<MinioContainerFixture>
     }
 
     [Fact]
+    public async Task Private_Bucket_Requires_Application_Visibility_Checks()
+    {
+        if (!_minio.IsEnabled) return;
+        EnsureMinioAvailableOrThrow();
+        using var factory = new NekoHubS3ApplicationFactory(_minio);
+        using var client = factory.CreateClient();
+        using var anonymous = factory.CreateAnonymousClient();
+        var uploaded = await UploadTestImage(client, "private-boundary.png", "image/png", new byte[100]);
+        var asset = (await GetResponseDataAsync<AssetResponse>(uploaded))!;
+        using var direct = new HttpClient();
+        var directResponse = await direct.GetAsync($"{_minio.Endpoint}/{_minio.BucketName}/{asset.StorageKey}");
+        directResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await anonymous.GetAsync($"/content/{asset.StorageKey}")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var hidden = await client.PatchAsJsonAsync($"/api/v1/assets/{asset.Id}", new { isPublic = false });
+        hidden.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await anonymous.GetAsync($"/content/{asset.StorageKey}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await direct.GetAsync($"{_minio.Endpoint}/{_minio.BucketName}/{asset.StorageKey}")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await client.GetAsync($"/api/v1/assets/{asset.Id}/content")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task S3_Asset_Complete_Lifecycle_Test()
     {
         if (!_minio.IsEnabled)
@@ -135,9 +156,18 @@ public class S3AssetLifecycleTests : IClassFixture<MinioContainerFixture>
 
         await using var scope = factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AssetDbContext>();
-        var derivative = await dbContext.AssetDerivatives
-            .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.SourceAssetId == asset.Id && x.Kind == AssetDerivativeKinds.Thumbnail256);
+        // 202 只承诺持久化任务已接受，衍生物由后台作业生成。
+        NekoHub.Domain.Assets.AssetDerivative? derivative = null;
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (derivative is null && DateTimeOffset.UtcNow < deadline)
+        {
+            derivative = await dbContext.AssetDerivatives.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.SourceAssetId == asset.Id && x.Kind == AssetDerivativeKinds.Thumbnail256);
+            if (derivative is null)
+            {
+                await Task.Delay(100);
+            }
+        }
 
         derivative.Should().NotBeNull();
         derivative!.StorageProvider.Should().Be("s3");
